@@ -1,4 +1,4 @@
-import { Trie } from "./Trie";
+import { Trie } from './Trie';
 
 export function solveGrid(grid, words) {
   const trie = new Trie(words);

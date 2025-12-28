@@ -1,85 +1,38 @@
-import React, { useState } from "react";
-import Grid from "./components/Grid";
-import WordList from "./components/WordList";
-import Controls from "./components/Controls";
-import { generateGrid } from "./algorithms/Generator";
-import { solveGrid } from "./algorithms/SolverDFS";
+import React, { useState } from 'react';
+import LandingPage from './pages/LandingPage';
+import CategoryPage from './pages/CategoryPage';
+import ContentMode from './pages/ContentMode';
+import DemoMode from './pages/DemoMode';
 
 export default function App() {
-  const words = ["CAT", "DOG", "BIRD", "FISH"];
-  const [grid, setGrid] = useState(generateGrid(5, words));
-  const [found, setFound] = useState([]);
-  const [highlightedCells, setHighlightedCells] = useState([]);
+  const [page, setPage] = useState('landing');
+  const [category, setCategory] = useState(null);
 
-  const handleSolve = () => {
-    const result = solveGrid(grid, words);
-    setFound(result);
+  const renderPage = () => {
+    if (page === 'landing') {
+      return <LandingPage onStart={() => setPage('category')} />;
+    }
     
-    // Find positions of found words
-    const highlighted = [];
-    result.forEach(word => {
-      const positions = findWordPositions(grid, word);
-      highlighted.push(...positions);
-    });
-    setHighlightedCells(highlighted);
-  };
+    if (page === 'category') {
+      return (
+        <CategoryPage 
+          onSelectCategory={(cat) => {
+            setCategory(cat);
+            setPage('game');
+          }} 
+        />
+      );
+    }
 
-  const handleGenerate = () => {
-    setGrid(generateGrid(5, words));
-    setFound([]);
-    setHighlightedCells([]);
-  };
-
-  const findWordPositions = (grid, word) => {
-    const positions = [];
-    const rows = grid.length;
-    const cols = grid[0].length;
-    
-    // Search in all 8 directions
-    const directions = [
-      [-1, -1], [-1, 0], [-1, 1],
-      [0, -1],           [0, 1],
-      [1, -1],  [1, 0],  [1, 1]
-    ];
-    
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        for (let [dr, dc] of directions) {
-          const foundPositions = checkDirection(grid, word, i, j, dr, dc);
-          if (foundPositions.length > 0) {
-            positions.push(...foundPositions);
-          }
-        }
+    if (page === 'game') {
+      if (category === 'content') {
+        return <ContentMode onBack={() => setPage('category')} />;
+      }
+      if (category === 'demo') {
+        return <DemoMode onBack={() => setPage('category')} />;
       }
     }
-    return positions;
   };
 
-  const checkDirection = (grid, word, startRow, startCol, dr, dc) => {
-    const positions = [];
-    let r = startRow;
-    let c = startCol;
-    
-    for (let i = 0; i < word.length; i++) {
-      if (r < 0 || r >= grid.length || c < 0 || c >= grid[0].length) {
-        return [];
-      }
-      if (grid[r][c] !== word[i]) {
-        return [];
-      }
-      positions.push(`${r}-${c}`);
-      r += dr;
-      c += dc;
-    }
-    return positions;
-  };
-
-  return (
-    <div className="app">
-      <h1>🔍 Word Search Generator & Solver</h1>
-      <Controls onGenerate={handleGenerate} onSolve={handleSolve} />
-      <Grid grid={grid} highlightedCells={highlightedCells} />
-      <WordList words={words} found={found} />
-    </div>
-  );
+  return <div className="app">{renderPage()}</div>;
 }
