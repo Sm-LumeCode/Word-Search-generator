@@ -16,13 +16,41 @@ export default function ContentMode({ onBack }) {
   const [highlightedCells, setHighlightedCells] = useState([]);
   const [solving, setSolving] = useState(false);
   const [step, setStep] = useState(1);
+  const [warningMessage, setWarningMessage] = useState('');
+
+  // Calculate max words based on grid size
+  const getMaxWords = (size) => {
+    // Formula: approximately (size * size) / 3, but with reasonable limits
+    const maxBySize = {
+      5: 6,
+      6: 8,
+      7: 10,
+      8: 12,
+      9: 14,
+      10: 16,
+      11: 18,
+      12: 20,
+      13: 22,
+      14: 24,
+      15: 25,
+    };
+    
+    if (size >= 16) {
+      return Math.min(30, Math.floor((size * size) / 10));
+    }
+    
+    return maxBySize[size] || Math.floor((size * size) / 3);
+  };
 
   const handleSizeSubmit = () => {
     const size = parseInt(gridSize);
-    if (size >= 3 && size <= 20) {
+    if (size >= 5 && size <= 20) {
+      setWarningMessage('');
       setStep(2);
+    } else if (size < 5) {
+      setWarningMessage('Minimum grid size is 5x5 for better word placement');
     } else {
-      alert('Please enter a size between 3 and 20');
+      setWarningMessage('Maximum grid size is 20x20');
     }
   };
 
@@ -30,7 +58,8 @@ export default function ContentMode({ onBack }) {
     setUseCustomWords(choice);
     if (choice === false) {
       const size = parseInt(gridSize);
-      const wordCount = Math.min(Math.floor(size * 1.5), 15);
+      const maxWords = getMaxWords(size);
+      const wordCount = Math.min(Math.floor(size * 1.2), maxWords);
       const generatedWords = getRandomWords(size, wordCount);
       setWords(generatedWords);
       setGrid(generateHardPuzzle(size, generatedWords));
@@ -44,6 +73,8 @@ export default function ContentMode({ onBack }) {
 
   const handleCustomWordsSubmit = () => {
     const size = parseInt(gridSize);
+    const maxWords = getMaxWords(size);
+    
     const wordArray = customWordsInput
       .toUpperCase()
       .split(',')
@@ -51,7 +82,20 @@ export default function ContentMode({ onBack }) {
       .filter(w => w.length > 0 && w.length <= size);
     
     if (wordArray.length === 0) {
-      alert('Please enter at least one valid word');
+      setWarningMessage('Please enter at least one valid word');
+      return;
+    }
+
+    if (wordArray.length > maxWords) {
+      setWarningMessage(`Maximum ${maxWords} words can be placed in a ${size}x${size} grid. Using first ${maxWords} words.`);
+      const limitedWords = wordArray.slice(0, maxWords);
+      setWords(limitedWords);
+      setGrid(generateHardPuzzle(size, limitedWords));
+      setTimeout(() => {
+        setShowSetup(false);
+        setFound([]);
+        setHighlightedCells([]);
+      }, 2000);
       return;
     }
 
@@ -60,6 +104,7 @@ export default function ContentMode({ onBack }) {
     setShowSetup(false);
     setFound([]);
     setHighlightedCells([]);
+    setWarningMessage('');
   };
 
   const handleGenerate = () => {
@@ -69,7 +114,8 @@ export default function ContentMode({ onBack }) {
     if (useCustomWords) {
       newWords = words;
     } else {
-      const wordCount = Math.min(Math.floor(size * 1.5), 15);
+      const maxWords = getMaxWords(size);
+      const wordCount = Math.min(Math.floor(size * 1.2), maxWords);
       newWords = getRandomWords(size, wordCount);
       setWords(newWords);
     }
@@ -142,9 +188,12 @@ export default function ContentMode({ onBack }) {
     setFound([]);
     setHighlightedCells([]);
     setStep(1);
+    setWarningMessage('');
   };
 
   if (showSetup) {
+    const currentMaxWords = gridSize ? getMaxWords(parseInt(gridSize)) : 0;
+    
     return (
       <div className="game-mode">
         <button className="back-btn" onClick={onBack}>← Back</button>
@@ -154,16 +203,22 @@ export default function ContentMode({ onBack }) {
           {step === 1 && (
             <div className="setup-step">
               <h3>Step 1: Choose Grid Size</h3>
-              <p>Enter matrix size (e.g., 5 for 5x5, 10 for 10x10)</p>
+              <p>Enter matrix size (minimum 5x5 for optimal gameplay)</p>
               <input
                 type="number"
                 value={gridSize}
-                onChange={(e) => setGridSize(e.target.value)}
-                placeholder="Enter size (3-20)"
+                onChange={(e) => {
+                  setGridSize(e.target.value);
+                  setWarningMessage('');
+                }}
+                placeholder="Enter size (5-20)"
                 className="input-field"
-                min="3"
+                min="5"
                 max="20"
               />
+              {warningMessage && (
+                <div className="warning-message">{warningMessage}</div>
+              )}
               <button className="btn-primary" onClick={handleSizeSubmit}>
                 Next →
               </button>
@@ -191,14 +246,23 @@ export default function ContentMode({ onBack }) {
           {step === 3 && (
             <div className="setup-step">
               <h3>Step 3: Enter Your Keywords</h3>
-              <p>Enter words separated by commas (e.g., CAT,DOG,BIRD)</p>
+              <p>Enter words separated by commas (Max: {currentMaxWords} words for {gridSize}x{gridSize} grid)</p>
+              <p style={{ fontSize: '0.9rem', color: '#adb5bd', marginTop: '-15px' }}>
+                Words must be {gridSize} letters or less
+              </p>
               <textarea
                 value={customWordsInput}
-                onChange={(e) => setCustomWordsInput(e.target.value)}
+                onChange={(e) => {
+                  setCustomWordsInput(e.target.value);
+                  setWarningMessage('');
+                }}
                 placeholder="CAT, DOG, BIRD, FISH..."
                 className="textarea-field"
                 rows="4"
               />
+              {warningMessage && (
+                <div className="warning-message">{warningMessage}</div>
+              )}
               <div className="button-group">
                 <button className="btn-primary" onClick={handleCustomWordsSubmit}>
                   Generate Puzzle →

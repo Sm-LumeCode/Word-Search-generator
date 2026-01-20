@@ -1,25 +1,18 @@
-const wordLists = {
-  easy: ['CAT', 'DOG', 'RAT', 'BAT', 'HAT', 'MAT', 'SAT', 'FAT', 'PIG', 'COW', 'HEN', 'FOX'],
-  medium: ['HOUSE', 'MOUSE', 'TRAIN', 'PLANE', 'TRUCK', 'HORSE', 'CHAIR', 'TABLE', 'PHONE', 'WATCH'],
-  hard: ['ALGORITHM', 'STRUCTURE', 'FUNCTION', 'VARIABLE', 'COMPUTER', 'KEYBOARD', 'MONITOR', 'DATABASE'],
-  dsa: ['ARRAY', 'STACK', 'QUEUE', 'TREE', 'GRAPH', 'HASH', 'SORT', 'SEARCH', 'NODE', 'LINK', 'HEAP', 'LIST']
+const wordBank = {
+  short: ['CAT', 'DOG', 'BAT', 'RAT', 'HAT', 'MAT', 'SUN', 'RUN', 'FUN', 'BUN'],
+  medium: ['APPLE', 'GRAPE', 'MANGO', 'BERRY', 'PEACH', 'LEMON', 'MELON', 'CHERRY'],
+  long: ['ORANGE', 'BANANA', 'PINEAPPLE', 'STRAWBERRY', 'BLUEBERRY', 'RASPBERRY'],
+  tech: ['CODE', 'DATA', 'CLOUD', 'JAVA', 'PYTHON', 'REACT', 'NODE', 'SWIFT', 'RUBY', 'LINUX'],
+  animals: ['LION', 'TIGER', 'BEAR', 'WOLF', 'EAGLE', 'SHARK', 'WHALE', 'DOLPHIN'],
+  colors: ['RED', 'BLUE', 'GREEN', 'YELLOW', 'PURPLE', 'ORANGE', 'BLACK', 'WHITE'],
+  nature: ['TREE', 'FLOWER', 'RIVER', 'OCEAN', 'MOUNTAIN', 'FOREST', 'DESERT', 'ISLAND'],
 };
 
-export function getRandomWords(size, count) {
-  let availableWords = [];
-  
-  if (size <= 5) {
-    availableWords = [...wordLists.easy];
-  } else if (size <= 8) {
-    availableWords = [...wordLists.easy, ...wordLists.medium];
-  } else {
-    availableWords = [...wordLists.easy, ...wordLists.medium, ...wordLists.hard, ...wordLists.dsa];
-  }
-  
-  // Filter words that fit in the grid
-  availableWords = availableWords.filter(word => word.length <= size);
+export function getRandomWords(maxLength, count) {
+  const allWords = Object.values(wordBank).flat();
+  const validWords = allWords.filter(word => word.length <= maxLength);
   
   // Shuffle and select
-  const shuffled = availableWords.sort(() => Math.random() - 0.5);
+  const shuffled = validWords.sort(() => Math.random() - 0.5);
   return shuffled.slice(0, Math.min(count, shuffled.length));
 }

@@ -1,31 +1,31 @@
 export function getLevelConfig(level) {
-  const configs = {
+  const levels = {
     1: {
-      size: 5,
-      words: ['CAT', 'DOG', 'BAT'],
-      description: 'Level 1: Easy - Small grid with 3 simple words'
+      size: 6,
+      words: ['CAT', 'DOG', 'BIRD', 'FISH'],
+      description: 'Beginner Level - 6x6 grid with 4 words'
     },
     2: {
-      size: 7,
-      words: ['TREE', 'BIRD', 'FISH', 'FROG'],
-      description: 'Level 2: Medium - Bigger grid with 4 words'
+      size: 8,
+      words: ['APPLE', 'ORANGE', 'GRAPE', 'MANGO', 'BERRY'],
+      description: 'Easy Level - 8x8 grid with 5 words'
     },
     3: {
-      size: 9,
-      words: ['HOUSE', 'MOUSE', 'PHONE', 'TABLE', 'CHAIR'],
-      description: 'Level 3: Hard - Large grid with 5 medium words'
+      size: 10,
+      words: ['PYTHON', 'JAVA', 'REACT', 'NODE', 'SWIFT', 'KOTLIN'],
+      description: 'Medium Level - 10x10 grid with 6 words'
     },
     4: {
       size: 12,
-      words: ['ALGORITHM', 'DATA', 'FUNCTION', 'VARIABLE', 'COMPUTER', 'SEARCH'],
-      description: 'Level 4: Very Hard - Complex words in large grid'
+      words: ['DATABASE', 'NETWORK', 'SECURITY', 'CLOUD', 'SERVER', 'CLIENT', 'FIREWALL'],
+      description: 'Hard Level - 12x12 grid with 7 words'
     },
     5: {
       size: 15,
-      words: ['STRUCTURE', 'ALGORITHM', 'KEYBOARD', 'DATABASE', 'MONITOR', 'FUNCTION', 'VARIABLE', 'COMPUTER'],
-      description: 'Level 5: Expert - Maximum difficulty with 8 complex words'
+      words: ['ALGORITHM', 'STRUCTURE', 'MEMORY', 'PROCESSOR', 'THREAD', 'COMPILE', 'DEBUG', 'DEPLOY'],
+      description: 'Expert Level - 15x15 grid with 8 words'
     }
   };
 
-  return configs[level] || configs[1];
+  return levels[level] || levels[1];
 }
