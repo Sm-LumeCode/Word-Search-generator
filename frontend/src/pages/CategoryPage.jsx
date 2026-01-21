@@ -1,25 +1,37 @@
 import React, { useEffect, useState } from 'react';
 
 export default function CategoryPage({ onSelectCategory }) {
-  const [letters, setLetters] = useState([]);
+  const [puzzlePieces, setPuzzlePieces] = useState([]);
 
   useEffect(() => {
-    // Create popping letters animation from random positions
-    const letterPool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const newLetters = [];
+    // Create puzzle pieces scattered across the screen, avoiding center area
+    const pieces = [];
     
-    for (let i = 0; i < 25; i++) {
-      newLetters.push({
+    for (let i = 0; i < 30; i++) {
+      let top, left;
+      
+      // Keep trying until we get a position outside the center area
+      do {
+        top = Math.random() * 100;
+        left = Math.random() * 100;
+      } while (
+        // Avoid center horizontal band (20-80% height, 10-90% width)
+        (top > 20 && top < 80 && left > 10 && left < 90) ||
+        // Avoid title area (top 30%)
+        (top < 30 && left > 20 && left < 80)
+      );
+      
+      pieces.push({
         id: i,
-        char: letterPool[Math.floor(Math.random() * letterPool.length)],
-        top: Math.random() * 100,
-        left: Math.random() * 100,
-        delay: Math.random() * 3,
-        scale: 0.6 + Math.random() * 0.8,
+        top: top,
+        left: left,
+        rotation: Math.random() * 360,
+        opacity: 0.15 + Math.random() * 0.15,
+        size: 30 + Math.random() * 30,
       });
     }
     
-    setLetters(newLetters);
+    setPuzzlePieces(pieces);
   }, []);
 
   const categories = [
@@ -34,29 +46,13 @@ export default function CategoryPage({ onSelectCategory }) {
       id: 'demo',
       title: '🚀 Demo',
       description: 'Manual vs DSA Speed Comparison',
-      color: 'linear-gradient(135deg, #9d4edd, #3d5af1)',
-      textColor: 'white'
+      color: 'linear-gradient(135deg, #06ffa5, #00d9ff)',
+      textColor: '#0f0f23'
     }
   ];
 
   return (
     <div className="category-page">
-      {/* Popping letters background */}
-      {letters.map(letter => (
-        <div
-          key={letter.id}
-          className="popping-letter"
-          style={{
-            top: `${letter.top}%`,
-            left: `${letter.left}%`,
-            animationDelay: `${letter.delay}s`,
-            fontSize: `${letter.scale * 3}rem`,
-          }}
-        >
-          {letter.char}
-        </div>
-      ))}
-      
       <h2 className="category-title">Choose Your Mode</h2>
       <div className="category-grid">
         {categories.map(cat => (
