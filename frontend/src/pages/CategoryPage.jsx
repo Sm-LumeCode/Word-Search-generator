@@ -4,20 +4,16 @@ export default function CategoryPage({ onSelectCategory }) {
   const [puzzlePieces, setPuzzlePieces] = useState([]);
 
   useEffect(() => {
-    // Create puzzle pieces scattered across the screen, avoiding center area
     const pieces = [];
     
     for (let i = 0; i < 30; i++) {
       let top, left;
       
-      // Keep trying until we get a position outside the center area
       do {
         top = Math.random() * 100;
         left = Math.random() * 100;
       } while (
-        // Avoid center horizontal band (20-80% height, 10-90% width)
         (top > 20 && top < 80 && left > 10 && left < 90) ||
-        // Avoid title area (top 30%)
         (top < 30 && left > 20 && left < 80)
       );
       
@@ -39,15 +35,22 @@ export default function CategoryPage({ onSelectCategory }) {
       id: 'content',
       title: '📝 Content',
       description: 'Fast generator and solver demo',
-      color: 'linear-gradient(135deg, #ff6b35, #f7931e)',
+      color: '#2c3e50',
       textColor: 'white'
     },
     {
       id: 'demo',
       title: '🚀 Demo',
-      description: 'Manual vs DSA Speed Comparison',
-      color: 'linear-gradient(135deg, #06ffa5, #00d9ff)',
-      textColor: '#0f0f23'
+      description: 'Machine: Without DSA vs With DSA',
+      color: '#34495e',
+      textColor: 'white'
+    },
+    {
+      id: 'game',
+      title: '🎮 Game',
+      description: 'Play manually with increasing levels',
+      color: '#1a252f',
+      textColor: 'white'
     }
   ];
 

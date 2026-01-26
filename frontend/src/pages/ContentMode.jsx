@@ -18,37 +18,34 @@ export default function ContentMode({ onBack }) {
   const [step, setStep] = useState(1);
   const [warningMessage, setWarningMessage] = useState('');
 
-  // Calculate max words based on grid size
+  // Calculate max words based on grid size with better logic
   const getMaxWords = (size) => {
-    // Formula: approximately (size * size) / 3, but with reasonable limits
-    const maxBySize = {
-      5: 6,
-      6: 8,
-      7: 10,
-      8: 12,
-      9: 14,
-      10: 16,
-      11: 18,
-      12: 20,
-      13: 22,
-      14: 24,
-      15: 25,
-    };
-    
-    if (size >= 16) {
-      return Math.min(30, Math.floor((size * size) / 10));
+    // For smaller grids, be more conservative
+    if (size <= 6) {
+      return Math.max(2, Math.floor(size * 0.6));
     }
-    
-    return maxBySize[size] || Math.floor((size * size) / 3);
+    if (size <= 8) {
+      return Math.floor(size * 0.8);
+    }
+    if (size <= 10) {
+      return Math.floor(size * 1.0);
+    }
+    if (size <= 12) {
+      return Math.floor(size * 1.2);
+    }
+    if (size <= 15) {
+      return Math.floor(size * 1.4);
+    }
+    return Math.min(30, Math.floor(size * 1.5));
   };
 
   const handleSizeSubmit = () => {
     const size = parseInt(gridSize);
-    if (size >= 5 && size <= 20) {
+    if (size >= 6 && size <= 20) {
       setWarningMessage('');
       setStep(2);
-    } else if (size < 5) {
-      setWarningMessage('Minimum grid size is 5x5 for better word placement');
+    } else if (size < 6) {
+      setWarningMessage('Minimum grid size is 6x6 for proper word placement');
     } else {
       setWarningMessage('Maximum grid size is 20x20');
     }
@@ -59,7 +56,7 @@ export default function ContentMode({ onBack }) {
     if (choice === false) {
       const size = parseInt(gridSize);
       const maxWords = getMaxWords(size);
-      const wordCount = Math.min(Math.floor(size * 1.2), maxWords);
+      const wordCount = Math.min(Math.floor(size * 0.8), maxWords);
       const generatedWords = getRandomWords(size, wordCount);
       setWords(generatedWords);
       setGrid(generateHardPuzzle(size, generatedWords));
@@ -115,7 +112,7 @@ export default function ContentMode({ onBack }) {
       newWords = words;
     } else {
       const maxWords = getMaxWords(size);
-      const wordCount = Math.min(Math.floor(size * 1.2), maxWords);
+      const wordCount = Math.min(Math.floor(size * 0.8), maxWords);
       newWords = getRandomWords(size, wordCount);
       setWords(newWords);
     }
@@ -137,167 +134,158 @@ export default function ContentMode({ onBack }) {
         highlighted.push(...positions);
       });
       setHighlightedCells(highlighted);
-      setSolving(false);
-    }, 500);
-  };
-
-  const findWordPositions = (grid, word) => {
-    const rows = grid.length;
-    const cols = grid[0].length;
-    const directions = [
-      [-1, -1], [-1, 0], [-1, 1],
-      [0, -1],           [0, 1],
-      [1, -1],  [1, 0],  [1, 1]
-    ];
-    
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        for (let [dr, dc] of directions) {
-          const foundPositions = checkDirection(grid, word, i, j, dr, dc);
-          if (foundPositions.length > 0) {
-            return foundPositions;
-          }
-        }
+  setSolving(false);
+}, 500);
+};
+const findWordPositions = (grid, word) => {
+const rows = grid.length;
+const cols = grid[0].length;
+const directions = [
+[-1, -1], [-1, 0], [-1, 1],
+[0, -1],           [0, 1],
+[1, -1],  [1, 0],  [1, 1]
+];
+for (let i = 0; i < rows; i++) {
+  for (let j = 0; j < cols; j++) {
+    for (let [dr, dc] of directions) {
+      const foundPositions = checkDirection(grid, word, i, j, dr, dc);
+      if (foundPositions.length > 0) {
+        return foundPositions;
       }
     }
-    return [];
-  };
-
-  const checkDirection = (grid, word, startRow, startCol, dr, dc) => {
-    const positions = [];
-    let r = startRow;
-    let c = startCol;
-    
-    for (let i = 0; i < word.length; i++) {
-      if (r < 0 || r >= grid.length || c < 0 || c >= grid[0].length) return [];
-      if (grid[r][c] !== word[i]) return [];
-      positions.push(`${r}-${c}`);
-      r += dr;
-      c += dc;
-    }
-    return positions;
-  };
-
-  const handleReset = () => {
-    setShowSetup(true);
-    setGridSize('');
-    setUseCustomWords(null);
-    setCustomWordsInput('');
-    setWords([]);
-    setGrid(null);
-    setFound([]);
-    setHighlightedCells([]);
-    setStep(1);
-    setWarningMessage('');
-  };
-
-  if (showSetup) {
-    const currentMaxWords = gridSize ? getMaxWords(parseInt(gridSize)) : 0;
-    
-    return (
-      <div className="game-mode">
-        <button className="back-btn" onClick={onBack}>← Back</button>
-        <h1>📝 Content Mode Setup</h1>
-        
-        <div className="setup-container">
-          {step === 1 && (
-            <div className="setup-step">
-              <h3>Step 1: Choose Grid Size</h3>
-              <p>Enter matrix size (minimum 5x5 for optimal gameplay)</p>
-              <input
-                type="number"
-                value={gridSize}
-                onChange={(e) => {
-                  setGridSize(e.target.value);
-                  setWarningMessage('');
-                }}
-                placeholder="Enter size (5-20)"
-                className="input-field"
-                min="5"
-                max="20"
-              />
-              {warningMessage && (
-                <div className="warning-message">{warningMessage}</div>
-              )}
-              <button className="btn-primary" onClick={handleSizeSubmit}>
-                Next →
-              </button>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="setup-step">
-              <h3>Step 2: Choose Word Source</h3>
-              <p>Do you want to provide your own keywords?</p>
-              <div className="button-group">
-                <button className="btn-choice yes" onClick={() => handleWordChoice(true)}>
-                  ✓ Yes, I'll provide words
-                </button>
-                <button className="btn-choice no" onClick={() => handleWordChoice(false)}>
-                  ✗ No, auto-generate words
-                </button>
-              </div>
-              <button className="btn-secondary" onClick={() => setStep(1)}>
-                ← Back
-              </button>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="setup-step">
-              <h3>Step 3: Enter Your Keywords</h3>
-              <p>Enter words separated by commas (Max: {currentMaxWords} words for {gridSize}x{gridSize} grid)</p>
-              <p style={{ fontSize: '0.9rem', color: '#adb5bd', marginTop: '-15px' }}>
-                Words must be {gridSize} letters or less
-              </p>
-              <textarea
-                value={customWordsInput}
-                onChange={(e) => {
-                  setCustomWordsInput(e.target.value);
-                  setWarningMessage('');
-                }}
-                placeholder="CAT, DOG, BIRD, FISH..."
-                className="textarea-field"
-                rows="4"
-              />
-              {warningMessage && (
-                <div className="warning-message">{warningMessage}</div>
-              )}
-              <div className="button-group">
-                <button className="btn-primary" onClick={handleCustomWordsSubmit}>
-                  Generate Puzzle →
-                </button>
-                <button className="btn-secondary" onClick={() => setStep(2)}>
-                  ← Back
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
   }
+}
+return [];
+};
+const checkDirection = (grid, word, startRow, startCol, dr, dc) => {
+const positions = [];
+let r = startRow;
+let c = startCol;
+for (let i = 0; i < word.length; i++) {
+  if (r < 0 || r >= grid.length || c < 0 || c >= grid[0].length) return [];
+  if (grid[r][c] !== word[i]) return [];
+  positions.push(`${r}-${c}`);
+  r += dr;
+  c += dc;
+}
+return positions;
+};
+const handleReset = () => {
+setShowSetup(true);
+setGridSize('');
+setUseCustomWords(null);
+setCustomWordsInput('');
+setWords([]);
+setGrid(null);
+setFound([]);
+setHighlightedCells([]);
+setStep(1);
+setWarningMessage('');
+};
+if (showSetup) {
+const currentMaxWords = gridSize ? getMaxWords(parseInt(gridSize)) : 0;
+return (
+  <div className="game-mode">
+    <button className="back-btn" onClick={onBack}>← Back</button>
+    <h1>📝 Content Mode Setup</h1>
+    
+    <div className="setup-container">
+      {step === 1 && (
+        <div className="setup-step">
+          <h3>Step 1: Choose Grid Size</h3>
+          <p>Enter matrix size (minimum 6x6 for optimal word placement)</p>
+          <input
+            type="number"
+            value={gridSize}
+            onChange={(e) => {
+              setGridSize(e.target.value);
+              setWarningMessage('');
+            }}
+            placeholder="Enter size (6-20)"
+            className="input-field"
+            min="6"
+            max="20"
+          />
+          {warningMessage && (
+            <div className="warning-message">{warningMessage}</div>
+          )}
+          <button className="btn-primary" onClick={handleSizeSubmit}>
+            Next →
+          </button>
+        </div>
+      )}
 
-  return (
-    <div className="game-mode">
-      <button className="back-btn" onClick={onBack}>← Back to Categories</button>
-      <h1>📝 Content Mode</h1>
-      <p className="mode-description">Fast generator and solver demonstration</p>
-      
-      <div className="controls">
-        <button className="btn-generate" onClick={handleGenerate}>
-          🔄 Generate New Puzzle
-        </button>
-        <button className="btn-solve" onClick={handleSolve} disabled={solving}>
-          {solving ? '⏳ Solving...' : '🎯 Solve Puzzle'}
-        </button>
-        <button className="btn-reset" onClick={handleReset}>
-          ⚙️ New Setup
-        </button>
-      </div>
+      {step === 2 && (
+        <div className="setup-step">
+          <h3>Step 2: Choose Word Source</h3>
+          <p>Do you want to provide your own keywords?</p>
+          <div className="button-group">
+            <button className="btn-choice yes" onClick={() => handleWordChoice(true)}>
+              ✔ Yes, I'll provide words
+            </button>
+            <button className="btn-choice no" onClick={() => handleWordChoice(false)}>
+              ✗ No, auto-generate words
+            </button>
+          </div>
+          <button className="btn-secondary" onClick={() => setStep(1)}>
+            ← Back
+          </button>
+        </div>
+      )}
 
-      <Grid grid={grid} highlightedCells={highlightedCells} />
-      <WordList words={words} found={found} />
+      {step === 3 && (
+        <div className="setup-step">
+          <h3>Step 3: Enter Your Keywords</h3>
+          <p>Enter words separated by commas (Max: {currentMaxWords} words for {gridSize}x{gridSize} grid)</p>
+          <p style={{ fontSize: '0.9rem', color: '#95a5a6', marginTop: '-15px' }}>
+            Words must be {gridSize} letters or less
+          </p>
+          <textarea
+            value={customWordsInput}
+            onChange={(e) => {
+              setCustomWordsInput(e.target.value);
+              setWarningMessage('');
+            }}
+            placeholder="CAT, DOG, BIRD, FISH..."
+            className="textarea-field"
+            rows="4"
+          />
+          {warningMessage && (
+            <div className="warning-message">{warningMessage}</div>
+          )}
+          <div className="button-group">
+            <button className="btn-primary" onClick={handleCustomWordsSubmit}>
+              Generate Puzzle →
+            </button>
+            <button className="btn-secondary" onClick={() => setStep(2)}>
+              ← Back
+            </button>
+          </div>
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
+}
+return (
+<div className="game-mode">
+<button className="back-btn" onClick={onBack}>← Back to Categories</button>
+<h1>📝 Content Mode</h1>
+<p className="mode-description">Fast generator and solver demonstration</p>
+  <div className="controls">
+    <button className="btn-generate" onClick={handleGenerate}>
+      🔄 Generate New Puzzle
+    </button>
+    <button className="btn-solve" onClick={handleSolve} disabled={solving}>
+      {solving ? '⏳ Solving...' : '🎯 Solve Puzzle'}
+    </button>
+    <button className="btn-reset" onClick={handleReset}>
+      ⚙️ New Setup
+    </button>
+  </div>
+
+  <Grid grid={grid} highlightedCells={highlightedCells} />
+  <WordList words={words} found={found} />
+</div>
+);
 }
