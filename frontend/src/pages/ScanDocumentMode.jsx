@@ -3,41 +3,12 @@ import Grid from '../components/Grid';
 import WordList from '../components/WordList';
 import { generateHardPuzzle } from '../algorithms/Generator';
 import { solveGrid } from '../algorithms/SolverDFS';
-
-// AI Keyword Extraction
-function extractKeywords(text) {
-  const commonWords = new Set([
-    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i',
-    'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
-    'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she',
-    'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their',
-    'is', 'are', 'was', 'were', 'been', 'has', 'had', 'can', 'may', 'could',
-    'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me'
-  ]);
-
-  const words = text
-    .toUpperCase()
-    .replace(/[^A-Z\s]/g, ' ')
-    .split(/\s+/)
-    .filter(word => word.length >= 3 && word.length <= 12)
-    .filter(word => !commonWords.has(word.toLowerCase()));
-
-  const frequency = {};
-  words.forEach(word => {
-    frequency[word] = (frequency[word] || 0) + 1;
-  });
-
-  const sorted = Object.entries(frequency)
-    .sort((a, b) => b[1] - a[1])
-    .map(([word]) => word);
-
-  return [...new Set(sorted)].slice(0, 20);
-}
+import { extractKeywords, getKeywordList } from '../algorithms/KeywordExtractor';
 
 export default function ScanDocumentMode({ onBack }) {
   const [uploadMethod, setUploadMethod] = useState(null);
   const [textInput, setTextInput] = useState('');
-  const [extractedKeywords, setExtractedKeywords] = useState([]);
+  const [extractionResult, setExtractionResult] = useState(null);
   const [selectedKeywords, setSelectedKeywords] = useState([]);
   const [gridSize, setGridSize] = useState(10);
   const [showPuzzle, setShowPuzzle] = useState(false);
@@ -45,29 +16,71 @@ export default function ScanDocumentMode({ onBack }) {
   const [found, setFound] = useState([]);
   const [highlightedCells, setHighlightedCells] = useState([]);
   const [solving, setSolving] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [showSteps, setShowSteps] = useState(false);
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target.result;
-        processText(text);
-      };
-      reader.readAsText(file);
+      setProcessing(true);
+      
+      if (file.type === 'application/pdf') {
+        // Handle PDF
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          
+          // Use PDF.js from CDN
+          const pdfjsLib = window['pdfjs-dist/build/pdf'];
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          
+          const pdf = await pdfjsLib.getDocument(uint8Array).promise;
+          let fullText = '';
+          
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n';
+          }
+          
+          processText(fullText);
+        } catch (error) {
+          alert('Error reading PDF file. Please try a different file or paste text directly.');
+          console.error(error);
+        }
+      } else {
+        // Handle TXT
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target.result;
+          processText(text);
+        };
+        reader.readAsText(file);
+      }
+      
+      setProcessing(false);
     }
   };
 
   const handleTextSubmit = () => {
     if (textInput.trim()) {
+      setProcessing(true);
       processText(textInput);
+      setProcessing(false);
     }
   };
 
   const processText = (text) => {
-    const keywords = extractKeywords(text);
-    setExtractedKeywords(keywords);
-    setSelectedKeywords(keywords.slice(0, Math.min(keywords.length, 10)));
+    const result = extractKeywords(text, 20);
+    
+    if (result.success) {
+      setExtractionResult(result);
+      const keywords = getKeywordList(result);
+      setSelectedKeywords(keywords.slice(0, Math.min(keywords.length, 10)));
+    } else {
+      alert(result.error || 'Error extracting keywords');
+    }
   };
 
   const toggleKeyword = (keyword) => {
@@ -150,7 +163,7 @@ export default function ScanDocumentMode({ onBack }) {
         </button>
 
         <h1>🤖 AI Generated Word Search</h1>
-        <p className="mode-description">Puzzle generated from your document keywords</p>
+        <p className="mode-description">Puzzle generated from your document keywords using DSA</p>
 
         <div className="controls">
           <button className="btn-generate" onClick={generatePuzzle}>
@@ -168,13 +181,15 @@ export default function ScanDocumentMode({ onBack }) {
   }
 
   // KEYWORD SELECTION VIEW
-  if (extractedKeywords.length > 0) {
+  if (extractionResult && extractionResult.success) {
+    const allKeywords = getKeywordList(extractionResult);
+    
     return (
       <div className="game-mode">
         <button 
           className="back-btn"
           onClick={() => {
-            setExtractedKeywords([]);
+            setExtractionResult(null);
             setSelectedKeywords([]);
             setUploadMethod(null);
             setTextInput('');
@@ -183,15 +198,67 @@ export default function ScanDocumentMode({ onBack }) {
           ← Start Over
         </button>
 
-        <h1>🤖 AI Extracted Keywords</h1>
+        <h1>🤖 AI Extracted Keywords (DSA)</h1>
+        <p className="mode-description">
+          Keywords extracted using HashMap, Frequency Analysis, and Sorting algorithms
+        </p>
 
         <div className="setup-container">
           <div className="setup-step">
+            {/* Stats Display */}
+            <div className="stats-display">
+              <div className="stat-item">
+                <span className="stat-label">Total Words:</span>
+                <span className="stat-value">{extractionResult.stats.totalWords}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Valid Words:</span>
+                <span className="stat-value">{extractionResult.stats.validWords}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Bigrams Detected:</span>
+                <span className="stat-value">{extractionResult.stats.bigramsDetected}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Unique Keywords:</span>
+                <span className="stat-value">{extractionResult.stats.uniqueWords}</span>
+              </div>
+            </div>
+
+            {/* Show DSA Steps Button */}
+            <button
+              onClick={() => setShowSteps(!showSteps)}
+              className="btn-secondary"
+              style={{ width: '100%', marginBottom: '20px' }}
+            >
+              {showSteps ? '📚 Hide' : '📚 Show'} DSA Processing Steps
+            </button>
+
+            {/* Processing Steps */}
+            {showSteps && (
+              <div className="processing-steps">
+                {extractionResult.processingSteps.map((step, index) => (
+                  <div key={index} className="step-item">
+                    <h4>Step {step.step}: {step.name}</h4>
+                    <p>{step.description}</p>
+                    <div className="step-result">{step.result}</div>
+                    {step.data && step.data.length > 0 && (
+                      <div className="step-data">
+                        {step.data.slice(0, 5).map((item, i) => (
+                          <div key={i} className="data-item">{item}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <h3>Select Keywords for Puzzle</h3>
             <p>Click keywords to include/exclude them from the puzzle</p>
 
             <div className="keyword-grid">
-              {extractedKeywords.map(keyword => (
+              {allKeywords.map(keyword => (
                 <div
                   key={keyword}
                   onClick={() => toggleKeyword(keyword)}
@@ -252,8 +319,8 @@ export default function ScanDocumentMode({ onBack }) {
       <div className="game-mode">
         <button className="back-btn" onClick={onBack}>← Back</button>
 
-        <h1>📄 Scan Document</h1>
-        <p className="mode-description">AI will extract keywords from your document</p>
+        <h1>📄 Scan Document with AI</h1>
+        <p className="mode-description">Upload a document or paste text to extract keywords using DSA algorithms</p>
 
         <div className="setup-container">
           <div className="setup-step">
@@ -266,7 +333,7 @@ export default function ScanDocumentMode({ onBack }) {
                 style={{ minWidth: '100%', padding: '30px' }}
               >
                 <div style={{ fontSize: '2rem', marginBottom: '10px' }}>📁</div>
-                Upload Document (TXT file)
+                Upload Document (TXT or PDF)
               </button>
 
               <button
@@ -296,15 +363,22 @@ export default function ScanDocumentMode({ onBack }) {
 
         <div className="setup-container">
           <div className="setup-step">
-            <h3>Select Text File</h3>
-            <p>Upload a .txt file containing your document or paragraph</p>
+            <h3>Select Document File</h3>
+            <p>Upload a .txt or .pdf file containing your document</p>
             
-            <input
-              type="file"
-              accept=".txt"
-              onChange={handleFileUpload}
-              className="file-input"
-            />
+            {processing ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--accent-blue)' }}>
+                <div className="loading-spinner"></div>
+                <p style={{ marginTop: '20px' }}>Processing document...</p>
+              </div>
+            ) : (
+              <input
+                type="file"
+                accept=".txt,.pdf"
+                onChange={handleFileUpload}
+                className="file-input"
+              />
+            )}
           </div>
         </div>
       </div>
@@ -324,29 +398,29 @@ export default function ScanDocumentMode({ onBack }) {
         <div className="setup-container">
           <div className="setup-step">
             <h3>Enter Your Document or Paragraph</h3>
-            <p>AI will analyze the text and extract relevant keywords</p>
+            <p>AI will analyze the text using DSA algorithms and extract relevant keywords</p>
             
             <textarea
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               placeholder="Paste your document or paragraph here...
 
-Example: Machine learning is a subset of artificial intelligence that focuses on developing algorithms and statistical models..."
+Example: Machine learning is a subset of artificial intelligence that focuses on developing algorithms and statistical models that enable computer systems to improve their performance on tasks through experience..."
               className="textarea-field"
               rows="10"
             />
             
             <button
               onClick={handleTextSubmit}
-              disabled={!textInput.trim()}
+              disabled={!textInput.trim() || processing}
               className="btn-primary"
               style={{ 
                 width: '100%',
-                opacity: textInput.trim() ? 1 : 0.5,
-                cursor: textInput.trim() ? 'pointer' : 'not-allowed'
+                opacity: (textInput.trim() && !processing) ? 1 : 0.5,
+                cursor: (textInput.trim() && !processing) ? 'pointer' : 'not-allowed'
               }}
             >
-              🤖 Extract Keywords with AI
+              {processing ? '⏳ Processing...' : '🤖 Extract Keywords with DSA'}
             </button>
           </div>
         </div>
