@@ -16,3 +16,4 @@ export function getRandomWords(maxLength, count) {
   const shuffled = validWords.sort(() => Math.random() - 0.5);
   return shuffled.slice(0, Math.min(count, shuffled.length));
 }
+

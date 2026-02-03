@@ -1,110 +1,133 @@
-import React, { useState } from 'react';
-import Grid from '../components/Grid';
-import WordList from '../components/WordList';
-import { generateHardPuzzle } from '../algorithms/Generator';
-import { solveGrid } from '../algorithms/SolverDFS';
-import { extractKeywords, getKeywordList } from '../algorithms/KeywordExtractor';
+import React, { useState } from "react";
+import { generateHardPuzzle } from "../algorithms/Generator";
+import { extractKeywords, getKeywordList } from "../algorithms/KeywordExtractor";
+import { getAIText } from "../utils/aiKeywordService";
+import { solveGrid } from "../algorithms/SolverDFS";
+import Grid from "../components/Grid";
+import WordList from "../components/WordList";
 
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorker from "pdfjs-dist/build/pdf.worker.min?url";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+
+// ---------- document reader ----------
+async function readDocument(file) {
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  if (ext === "txt") return await file.text();
+
+  if (ext === "docx") {
+    const mammoth = await import("mammoth");
+    const buffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+    return result.value;
+  }
+
+  if (ext === "pdf") {
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+
+    if (pdf.numPages > 20) {
+      throw new Error("PDF too large (max 20 pages)");
+    }
+
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(item => item.str).join(" ");
+    }
+
+    return text;
+  }
+
+  throw new Error("Unsupported file type");
+}
+
+// ---------- COMPONENT ----------
 export default function ScanDocumentMode({ onBack }) {
-  const [uploadMethod, setUploadMethod] = useState(null);
-  const [textInput, setTextInput] = useState('');
-  const [extractionResult, setExtractionResult] = useState(null);
-  const [selectedKeywords, setSelectedKeywords] = useState([]);
+  // Page state: 'scan', 'select', 'puzzle'
+  const [page, setPage] = useState('scan');
+  
+  const [file, setFile] = useState(null);
+  const [extractedWords, setExtractedWords] = useState([]);
+  const [selectedWords, setSelectedWords] = useState([]);
   const [gridSize, setGridSize] = useState(10);
-  const [showPuzzle, setShowPuzzle] = useState(false);
   const [grid, setGrid] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  
+  // Puzzle page state
   const [found, setFound] = useState([]);
   const [highlightedCells, setHighlightedCells] = useState([]);
   const [solving, setSolving] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [showSteps, setShowSteps] = useState(false);
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setProcessing(true);
-      
-      if (file.type === 'application/pdf') {
-        // Handle PDF
-        try {
-          const arrayBuffer = await file.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-          
-          // Use PDF.js from CDN
-          const pdfjsLib = window['pdfjs-dist/build/pdf'];
-          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-          
-          const pdf = await pdfjsLib.getDocument(uint8Array).promise;
-          let fullText = '';
-          
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(' ');
-            fullText += pageText + '\n';
-          }
-          
-          processText(fullText);
-        } catch (error) {
-          alert('Error reading PDF file. Please try a different file or paste text directly.');
-          console.error(error);
-        }
-      } else {
-        // Handle TXT
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const text = event.target.result;
-          processText(text);
-        };
-        reader.readAsText(file);
+  // 📄 SCAN DOCUMENT
+  const handleScan = async () => {
+    if (!file) {
+      setError("Please upload a document");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      let rawText = await readDocument(file);
+      rawText = rawText.slice(0, 15000);
+
+      const aiText = await getAIText(rawText);
+      const extraction = extractKeywords(aiText, 15);
+
+      if (!extraction.success) {
+        throw new Error("Keyword extraction failed");
       }
-      
-      setProcessing(false);
+
+      const words = getKeywordList(extraction);
+
+      if (!words || words.length === 0) {
+        throw new Error("No keywords extracted");
+      }
+
+      setExtractedWords(words);
+      setSelectedWords(words); // default: all selected
+      setPage('select'); // Move to selection page
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleTextSubmit = () => {
-    if (textInput.trim()) {
-      setProcessing(true);
-      processText(textInput);
-      setProcessing(false);
+  // 🧩 GENERATE GRID
+  const handleGenerate = () => {
+    if (selectedWords.length < 3) {
+      setError("Select at least 3 words");
+      return;
     }
-  };
 
-  const processText = (text) => {
-    const result = extractKeywords(text, 20);
-    
-    if (result.success) {
-      setExtractionResult(result);
-      const keywords = getKeywordList(result);
-      setSelectedKeywords(keywords.slice(0, Math.min(keywords.length, 10)));
-    } else {
-      alert(result.error || 'Error extracting keywords');
-    }
-  };
-
-  const toggleKeyword = (keyword) => {
-    if (selectedKeywords.includes(keyword)) {
-      setSelectedKeywords(selectedKeywords.filter(k => k !== keyword));
-    } else {
-      setSelectedKeywords([...selectedKeywords, keyword]);
-    }
-  };
-
-  const generatePuzzle = () => {
-    if (selectedKeywords.length === 0) return;
-    
-    const newGrid = generateHardPuzzle(gridSize, selectedKeywords);
-    setGrid(newGrid);
-    setShowPuzzle(true);
+    const generatedGrid = generateHardPuzzle(gridSize, selectedWords);
+    setGrid(generatedGrid);
     setFound([]);
     setHighlightedCells([]);
+    setPage('puzzle'); // Move to puzzle page
   };
 
+  // ☑️ TOGGLE WORD
+  const toggleWord = (word) => {
+    setSelectedWords(prev =>
+      prev.includes(word)
+        ? prev.filter(w => w !== word)
+        : [...prev, word]
+    );
+  };
+
+  // 🎯 SOLVE PUZZLE
   const handleSolve = () => {
     setSolving(true);
     setTimeout(() => {
-      const result = solveGrid(grid, selectedKeywords);
+      const result = solveGrid(grid, selectedWords);
       setFound(result);
       
       const highlighted = [];
@@ -117,6 +140,7 @@ export default function ScanDocumentMode({ onBack }) {
     }, 500);
   };
 
+  // Find word positions in grid
   const findWordPositions = (grid, word) => {
     const rows = grid.length;
     const cols = grid[0].length;
@@ -129,9 +153,9 @@ export default function ScanDocumentMode({ onBack }) {
     for (let i = 0; i < rows; i++) {
       for (let j = 0; j < cols; j++) {
         for (let [dr, dc] of directions) {
-          const foundPositions = checkDirection(grid, word, i, j, dr, dc);
-          if (foundPositions.length > 0) {
-            return foundPositions;
+          const positions = checkDirection(grid, word, i, j, dr, dc);
+          if (positions.length > 0) {
+            return positions;
           }
         }
       }
@@ -154,276 +178,150 @@ export default function ScanDocumentMode({ onBack }) {
     return positions;
   };
 
-  // PUZZLE VIEW
-  if (showPuzzle && grid) {
+  // 🔄 REGENERATE
+  const handleRegenerate = () => {
+    const newGrid = generateHardPuzzle(gridSize, selectedWords);
+    setGrid(newGrid);
+    setFound([]);
+    setHighlightedCells([]);
+  };
+
+  // 📄 SCAN PAGE
+  if (page === 'scan') {
     return (
       <div className="game-mode">
-        <button className="back-btn" onClick={() => setShowPuzzle(false)}>
-          ← Back to Keywords
-        </button>
+        <button className="back-btn" onClick={onBack}>← Back</button>
+        
+        <h1>📄 Scan Document Mode</h1>
+        <p className="mode-description">Upload a document to extract keywords and generate puzzle</p>
 
-        <h1>🤖 AI Generated Word Search</h1>
-        <p className="mode-description">Puzzle generated from your document keywords using DSA</p>
+        <div className="setup-container">
+          <div className="setup-step">
+            <h3>Upload Document</h3>
+            <p>Supported formats: .txt, .pdf, .docx (max 20 pages for PDF)</p>
+            
+            <input
+              type="file"
+              accept=".txt,.pdf,.docx"
+              onChange={(e) => {
+                setFile(e.target.files[0]);
+                setError("");
+              }}
+              className="file-input"
+            />
 
-        <div className="controls">
-          <button className="btn-generate" onClick={generatePuzzle}>
-            🔄 Regenerate Puzzle
-          </button>
-          <button className="btn-solve" onClick={handleSolve} disabled={solving}>
-            {solving ? '⏳ Solving...' : '🎯 Solve Puzzle'}
-          </button>
+            <button 
+              className="btn-primary" 
+              onClick={handleScan} 
+              disabled={loading || !file}
+              style={{ marginTop: '20px' }}
+            >
+              {loading ? '⏳ Scanning Document...' : '🔍 Scan & Extract Keywords'}
+            </button>
+
+            {error && <div className="warning-message">{error}</div>}
+          </div>
         </div>
-
-        <Grid grid={grid} highlightedCells={highlightedCells} />
-        <WordList words={selectedKeywords} found={found} />
       </div>
     );
   }
 
-  // KEYWORD SELECTION VIEW
-  if (extractionResult && extractionResult.success) {
-    const allKeywords = getKeywordList(extractionResult);
-    
+  // 📝 KEYWORD SELECTION PAGE
+  if (page === 'select') {
     return (
       <div className="game-mode">
-        <button 
-          className="back-btn"
-          onClick={() => {
-            setExtractionResult(null);
-            setSelectedKeywords([]);
-            setUploadMethod(null);
-            setTextInput('');
-          }}
-        >
-          ← Start Over
-        </button>
-
-        <h1>🤖 AI Extracted Keywords (DSA)</h1>
+        <button className="back-btn" onClick={() => setPage('scan')}>← Back to Upload</button>
+        
+        <h1>📝 Select Keywords</h1>
         <p className="mode-description">
-          Keywords extracted using HashMap, Frequency Analysis, and Sorting algorithms
+          Choose keywords to include in your puzzle (Selected: {selectedWords.length}/{extractedWords.length})
         </p>
 
-        <div className="setup-container">
+        <div className="setup-container" style={{ maxWidth: '800px' }}>
           <div className="setup-step">
-            {/* Stats Display */}
-            <div className="stats-display">
-              <div className="stat-item">
-                <span className="stat-label">Total Words:</span>
-                <span className="stat-value">{extractionResult.stats.totalWords}</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-label">Valid Words:</span>
-                <span className="stat-value">{extractionResult.stats.validWords}</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-label">Bigrams Detected:</span>
-                <span className="stat-value">{extractionResult.stats.bigramsDetected}</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-label">Unique Keywords:</span>
-                <span className="stat-value">{extractionResult.stats.uniqueWords}</span>
-              </div>
-            </div>
-
-            {/* Show DSA Steps Button */}
-            <button
-              onClick={() => setShowSteps(!showSteps)}
-              className="btn-secondary"
-              style={{ width: '100%', marginBottom: '20px' }}
-            >
-              {showSteps ? '📚 Hide' : '📚 Show'} DSA Processing Steps
-            </button>
-
-            {/* Processing Steps */}
-            {showSteps && (
-              <div className="processing-steps">
-                {extractionResult.processingSteps.map((step, index) => (
-                  <div key={index} className="step-item">
-                    <h4>Step {step.step}: {step.name}</h4>
-                    <p>{step.description}</p>
-                    <div className="step-result">{step.result}</div>
-                    {step.data && step.data.length > 0 && (
-                      <div className="step-data">
-                        {step.data.slice(0, 5).map((item, i) => (
-                          <div key={i} className="data-item">{item}</div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <h3>Select Keywords for Puzzle</h3>
-            <p>Click keywords to include/exclude them from the puzzle</p>
+            <h3>Keywords Extracted</h3>
+            <p>Click to select/deselect keywords for your puzzle</p>
 
             <div className="keyword-grid">
-              {allKeywords.map(keyword => (
+              {extractedWords.map((word, i) => (
                 <div
-                  key={keyword}
-                  onClick={() => toggleKeyword(keyword)}
-                  className={`keyword-chip ${selectedKeywords.includes(keyword) ? 'selected' : ''}`}
+                  key={i}
+                  className={`keyword-chip ${selectedWords.includes(word) ? 'selected' : ''}`}
+                  onClick={() => toggleWord(word)}
                 >
-                  {keyword}
-                  {selectedKeywords.includes(keyword) && ' ✓'}
+                  {word}
                 </div>
               ))}
             </div>
 
+            {/* 🔢 GRID SIZE SLIDER */}
             <div style={{ marginTop: '30px' }}>
               <label className="slider-label">
-                Grid Size: {gridSize}x{gridSize}
+                Grid Size: <strong>{gridSize} × {gridSize}</strong>
               </label>
               <input
                 type="range"
-                min="8"
-                max="20"
+                min="6"
+                max="15"
                 value={gridSize}
-                onChange={(e) => setGridSize(parseInt(e.target.value))}
+                onChange={(e) => setGridSize(Number(e.target.value))}
                 className="grid-slider"
               />
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                fontSize: '0.9rem', 
-                color: 'var(--text-secondary)',
-                marginTop: '5px'
-              }}>
-                <span>8x8</span>
-                <span>20x20</span>
-              </div>
             </div>
 
-            <button
-              onClick={generatePuzzle}
-              disabled={selectedKeywords.length === 0}
-              className="btn-primary"
-              style={{ 
-                width: '100%', 
-                marginTop: '30px',
-                opacity: selectedKeywords.length === 0 ? 0.5 : 1,
-                cursor: selectedKeywords.length === 0 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Generate Puzzle ({selectedKeywords.length} words)
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // UPLOAD METHOD SELECTION
-  if (!uploadMethod) {
-    return (
-      <div className="game-mode">
-        <button className="back-btn" onClick={onBack}>← Back</button>
-
-        <h1>📄 Scan Document with AI</h1>
-        <p className="mode-description">Upload a document or paste text to extract keywords using DSA algorithms</p>
-
-        <div className="setup-container">
-          <div className="setup-step">
-            <h3>Choose Input Method</h3>
-            
-            <div className="button-group">
-              <button
-                onClick={() => setUploadMethod('file')}
-                className="btn-choice"
-                style={{ minWidth: '100%', padding: '30px' }}
-              >
-                <div style={{ fontSize: '2rem', marginBottom: '10px' }}>📁</div>
-                Upload Document (TXT or PDF)
-              </button>
-
-              <button
-                onClick={() => setUploadMethod('text')}
-                className="btn-choice"
-                style={{ minWidth: '100%', padding: '30px' }}
-              >
-                <div style={{ fontSize: '2rem', marginBottom: '10px' }}>✍️</div>
-                Paste Text/Paragraph
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // FILE UPLOAD VIEW
-  if (uploadMethod === 'file') {
-    return (
-      <div className="game-mode">
-        <button className="back-btn" onClick={() => setUploadMethod(null)}>
-          ← Back
-        </button>
-
-        <h1>📁 Upload Document</h1>
-
-        <div className="setup-container">
-          <div className="setup-step">
-            <h3>Select Document File</h3>
-            <p>Upload a .txt or .pdf file containing your document</p>
-            
-            {processing ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--accent-blue)' }}>
-                <div className="loading-spinner"></div>
-                <p style={{ marginTop: '20px' }}>Processing document...</p>
+            {selectedWords.length < 3 && (
+              <div className="warning-message" style={{ marginTop: '20px' }}>
+                Please select at least 3 keywords
               </div>
-            ) : (
-              <input
-                type="file"
-                accept=".txt,.pdf"
-                onChange={handleFileUpload}
-                className="file-input"
-              />
             )}
+
+            <button 
+              className="btn-primary" 
+              onClick={handleGenerate}
+              disabled={selectedWords.length < 3}
+              style={{ marginTop: '20px' }}
+            >
+              🧩 Generate Puzzle
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // TEXT INPUT VIEW
-  if (uploadMethod === 'text') {
+  // 🧩 PUZZLE PAGE
+  if (page === 'puzzle' && grid) {
     return (
       <div className="game-mode">
-        <button className="back-btn" onClick={() => setUploadMethod(null)}>
-          ← Back
-        </button>
-
-        <h1>✍️ Paste Your Text</h1>
-
-        <div className="setup-container">
-          <div className="setup-step">
-            <h3>Enter Your Document or Paragraph</h3>
-            <p>AI will analyze the text using DSA algorithms and extract relevant keywords</p>
-            
-            <textarea
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              placeholder="Paste your document or paragraph here...
-
-Example: Machine learning is a subset of artificial intelligence that focuses on developing algorithms and statistical models that enable computer systems to improve their performance on tasks through experience..."
-              className="textarea-field"
-              rows="10"
-            />
-            
-            <button
-              onClick={handleTextSubmit}
-              disabled={!textInput.trim() || processing}
-              className="btn-primary"
-              style={{ 
-                width: '100%',
-                opacity: (textInput.trim() && !processing) ? 1 : 0.5,
-                cursor: (textInput.trim() && !processing) ? 'pointer' : 'not-allowed'
-              }}
-            >
-              {processing ? '⏳ Processing...' : '🤖 Extract Keywords with DSA'}
-            </button>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <button className="back-btn" onClick={() => setPage('select')}>← Back to Keywords</button>
+          <button className="back-btn" onClick={onBack} style={{ background: 'var(--accent-purple)', borderColor: 'var(--accent-purple)' }}>
+            🏠 Back to Categories
+          </button>
         </div>
+        
+        <h1>🧩 Your Word Search Puzzle</h1>
+        <p className="mode-description">
+          {found.length === selectedWords.length 
+            ? '🎉 All words found!' 
+            : `Found ${found.length} of ${selectedWords.length} words`}
+        </p>
+
+        <div className="controls">
+          <button className="btn-generate" onClick={handleRegenerate}>
+            🔄 Regenerate Puzzle
+          </button>
+          <button 
+            className="btn-solve" 
+            onClick={handleSolve} 
+            disabled={solving || found.length === selectedWords.length}
+          >
+            {solving ? '⏳ Solving...' : found.length === selectedWords.length ? '✅ All Found' : '🎯 Solve Puzzle'}
+          </button>
+        </div>
+
+        <Grid grid={grid} highlightedCells={highlightedCells} />
+        <WordList words={selectedWords} found={found} />
       </div>
     );
   }

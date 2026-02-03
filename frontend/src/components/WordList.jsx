@@ -1,16 +1,16 @@
 import React from 'react';
 
-export default function WordList({ words, found }) {
+export default function WordList({ words, found = [] }) {
   return (
-    <div className="word-list">
+    <div className="word-list-container">
       <h3>Words to Find ({found.length}/{words.length})</h3>
-      <ul>
-        {words.map(word => (
+      <ul className="word-list">
+        {words.map((word, index) => (
           <li 
-            key={word}
+            key={index} 
             className={found.includes(word) ? 'found' : ''}
           >
-            {word} {found.includes(word) && '✓'}
+            {word}
           </li>
         ))}
       </ul>
