@@ -199,7 +199,7 @@ export default function GameMode({ onBack }) {
         <span className={`status-badge ${active ? 'active' : completed ? 'completed' : failed ? 'failed' : 'waiting'}`}>
           {active ? '🔍 Playing...' : completed ? '✅ Completed' : failed ? '❌ Time Up!' : '⏸️ Drag to select'}
         </span>
-        <p style={{ fontSize: '0.9rem', marginTop: '10px', color: '#ecf0f1' }}>
+        <p style={{ fontSize: '0.9rem', marginTop: '10px', color: '#10aab8' }}>
           Click and drag to select words (straight lines or diagonals)
         </p>
       </div>
