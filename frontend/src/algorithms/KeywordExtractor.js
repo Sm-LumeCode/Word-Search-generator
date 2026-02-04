@@ -62,32 +62,15 @@ const STOP_WORDS = new Set([
 const MIN_WORD_LENGTH = 4;
 
 /**
- * Step 1: Tokenize text into words while preserving sentence boundaries
+ * Step 1: Tokenize text into words
  * Time Complexity: O(n) where n is the number of characters
  */
 function tokenize(text) {
-  const phrases = text.toLowerCase().split(/[,;.!?:\-—()[\]{}]+/);
-
-  const allTokens = [];
-  const phraseBoundaries = [];
-
-  let tokenIndex = 0;
-  for (const phrase of phrases) {
-    const normalized = phrase.replace(/[^a-z\s]/g, ' ');
-    const tokens = normalized.split(/\s+/).filter(word => word.length > 0);
-
-    if (tokens.length > 0) {
-      const phraseIndices = [];
-      for (const token of tokens) {
-        allTokens.push(token);
-        phraseIndices.push(tokenIndex);
-        tokenIndex++;
-      }
-      phraseBoundaries.push(phraseIndices);
-    }
-  }
-
-  return { tokens: allTokens, phraseBoundaries };
+  // Split by common delimiters and clean
+  const normalized = text.toLowerCase().replace(/[^a-z\s]/g, ' ');
+  const tokens = normalized.split(/\s+/).filter(word => word.length > 0);
+  
+  return tokens;
 }
 
 /**
@@ -98,37 +81,6 @@ function filterWords(words) {
   return words.filter(word =>
     !STOP_WORDS.has(word) && word.length >= MIN_WORD_LENGTH
   );
-}
-
-/**
- * Step 2.5: Extract bigrams using sliding window approach
- * Time Complexity: O(w) where w is the number of words
- */
-function extractBigrams(tokens, phraseBoundaries) {
-  const bigrams = [];
-  const MIN_BIGRAM_WORD_LENGTH = 3;
-
-  for (const phraseIndices of phraseBoundaries) {
-    if (phraseIndices.length < 2) continue;
-
-    for (let i = 0; i < phraseIndices.length - 1; i++) {
-      const idx1 = phraseIndices[i];
-      const idx2 = phraseIndices[i + 1];
-
-      const word1 = tokens[idx1];
-      const word2 = tokens[idx2];
-
-      const isWord1Valid = !STOP_WORDS.has(word1) && word1.length >= MIN_BIGRAM_WORD_LENGTH;
-      const isWord2Valid = !STOP_WORDS.has(word2) && word2.length >= MIN_BIGRAM_WORD_LENGTH;
-
-      if (isWord1Valid && isWord2Valid) {
-        const mergedBigram = word1 + word2;
-        bigrams.push(mergedBigram);
-      }
-    }
-  }
-
-  return bigrams;
 }
 
 /**
@@ -202,12 +154,12 @@ export function extractKeywords(text, k = 15) {
   const processingSteps = [];
 
   // Step 1: Tokenization
-  const { tokens, phraseBoundaries } = tokenize(text);
+  const tokens = tokenize(text);
   processingSteps.push({
     step: 1,
     name: 'Tokenization',
-    description: 'Convert text to lowercase and split into words, preserving phrase boundaries',
-    result: `${tokens.length} words extracted from ${phraseBoundaries.length} phrases`,
+    description: 'Convert text to lowercase and split into individual words',
+    result: `${tokens.length} words extracted`,
     data: tokens.slice(0, 20)
   });
 
@@ -230,30 +182,19 @@ export function extractKeywords(text, k = 15) {
     };
   }
 
-  // Step 2.5: Extract bigrams
-  const bigrams = extractBigrams(tokens, phraseBoundaries);
-  processingSteps.push({
-    step: 2.5,
-    name: 'Bigram Detection (Sliding Window)',
-    description: 'Detect consecutive word pairs within the same phrase',
-    result: `${bigrams.length} bigrams detected`,
-    data: bigrams.slice(0, 15)
-  });
-
   // Step 3: Build frequency map
-  const allWords = [...filteredWords, ...bigrams];
-  const frequencyMap = buildFrequencyMap(allWords);
+  const frequencyMap = buildFrequencyMap(filteredWords);
   const uniqueWords = Object.keys(frequencyMap).length;
   processingSteps.push({
     step: 3,
     name: 'Frequency Counting',
-    description: 'Store words and bigrams in HashMap and count occurrences',
-    result: `${uniqueWords} unique keywords found (including bigrams)`,
+    description: 'Store words in HashMap and count occurrences',
+    result: `${uniqueWords} unique keywords found`,
     data: Object.entries(frequencyMap).slice(0, 10).map(([word, freq]) => `${word}: ${freq}`)
   });
 
   // Step 4: Compute scores
-  const scoredWords = computeScores(frequencyMap, allWords.length);
+  const scoredWords = computeScores(frequencyMap, filteredWords.length);
   processingSteps.push({
     step: 4,
     name: 'Score Computation',
@@ -274,46 +215,9 @@ export function extractKeywords(text, k = 15) {
     data: sortedWords.slice(0, 10).map(w => `${w.word}: ${w.score.toFixed(4)}`)
   });
 
-  // Step 5.5: Filter out individual words that are part of bigrams
-  const bigramSet = new Set(bigrams.map(b => b.toLowerCase()));
-  const filteredSortedWords = [];
-  const removedWords = [];
-
-  for (const wordObj of sortedWords) {
-    const word = wordObj.word.toLowerCase();
-    let shouldKeep = true;
-
-    for (const bigram of bigramSet) {
-      if (bigram.startsWith(word) || bigram.endsWith(word)) {
-        const bigramObj = sortedWords.find(w => w.word.toLowerCase() === bigram);
-
-        if (bigramObj && bigramObj.score > wordObj.score) {
-          shouldKeep = false;
-          removedWords.push(word);
-          break;
-        }
-      }
-    }
-
-    if (shouldKeep) {
-      filteredSortedWords.push(wordObj);
-    }
-  }
-
-  if (removedWords.length > 0) {
-    processingSteps.push({
-      step: 5.5,
-      name: 'Bigram Filtering',
-      description: 'Remove individual words that are part of higher-scoring compound words',
-      result: `${removedWords.length} individual words removed in favor of compound words`,
-      data: removedWords.slice(0, 10).map(w => `Removed: ${w}`)
-    });
-  }
-
   // Step 6: Select top K words
-  const finalList = filteredSortedWords.length > 0 ? filteredSortedWords : sortedWords;
-  const topK = Math.min(k, finalList.length);
-  const keywords = finalList.slice(0, topK);
+  const topK = Math.min(k, sortedWords.length);
+  const keywords = sortedWords.slice(0, topK);
   processingSteps.push({
     step: 6,
     name: 'Top-K Selection',
@@ -325,13 +229,13 @@ export function extractKeywords(text, k = 15) {
   return {
     success: true,
     keywords,
-    allSortedKeywords: finalList,
+    allSortedKeywords: sortedWords,
     processingSteps,
     stats: {
       totalWords: tokens.length,
       validWords: filteredWords.length,
-      bigramsDetected: bigrams.length,
-      totalKeywords: allWords.length,
+      bigramsDetected: 0, // No bigrams anymore
+      totalKeywords: filteredWords.length,
       uniqueWords,
       selectedWords: topK,
       filterRate: ((tokens.length - filteredWords.length) / tokens.length * 100).toFixed(1) + '%'
