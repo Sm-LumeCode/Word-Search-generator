@@ -755,6 +755,56 @@ h1 {
     top: 10px;
     right: 10px;
   }
+
+  /* Added mobile optimizations */
+  .game-container {
+    padding: 10px 5px;
+  }
+
+  .grid {
+    padding: 10px;
+    gap: 1px;
+    margin: 10px auto;
+    box-shadow: none;
+    border: none;
+    background: transparent;
+  }
+  
+  .cell {
+    border-width: 1px;
+    font-size: 1rem;
+    border-radius: 4px;
+    /* Ensure touch targets are reasonable or at least visual is clear */
+  }
+
+  .level-info h2 {
+    font-size: 1.5rem;
+  }
+  
+  .controls {
+    flex-direction: column;
+    padding: 0 20px;
+  }
+  
+  .btn-reset, .btn-next {
+    width: 100%;
+    padding: 12px;
+  }
+  
+  .word-list {
+    padding: 15px;
+    margin: 15px auto;
+  }
+  
+  .word-list ul {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .word-list li {
+    font-size: 0.8rem;
+    padding: 8px 5px;
+    min-height: 36px;
+  }
 }
 /* Keyword Selection Styles */
 .keyword-grid {
