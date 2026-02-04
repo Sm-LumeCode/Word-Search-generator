@@ -808,12 +808,7 @@ h1 {
   width: 100%;
   height: 10px;
   border-radius: 5px;
-  background: linear-gradient(90deg, 
-    #3498db 0%, 
-    #2ecc71 25%, 
-    #f39c12 50%, 
-    #e74c3c 75%, 
-    #9b59b6 100%);
+  background: var(--accent-blue);  /* Solid blue matching theme */
   outline: none;
   -webkit-appearance: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);

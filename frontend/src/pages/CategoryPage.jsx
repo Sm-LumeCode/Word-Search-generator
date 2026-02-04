@@ -34,23 +34,17 @@ export default function CategoryPage({ onSelectCategory }) {
     {
       id: 'content',
       title: '📝 Content',
-      description: 'Fast generator and solver demo',
-      color: '#2c3e50',
-      textColor: 'white'
+      description: 'Fast generator and solver demo'
     },
     {
       id: 'demo',
       title: '🚀 Demo',
-      description: 'Machine: Without DSA vs With DSA',
-      color: '#34495e',
-      textColor: 'white'
+      description: 'Machine: Without DSA vs With DSA'
     },
     {
       id: 'game',
       title: '🎮 Game',
-      description: 'Play manually with increasing levels',
-      color: '#1a252f',
-      textColor: 'white'
+      description: 'Play manually with increasing levels'
     }
   ];
 
@@ -62,7 +56,6 @@ export default function CategoryPage({ onSelectCategory }) {
           <div 
             key={cat.id}
             className="category-card"
-            style={{ background: cat.color, color: cat.textColor }}
             onClick={() => onSelectCategory(cat.id)}
           >
             <h3>{cat.title}</h3>
