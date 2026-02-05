@@ -394,7 +394,7 @@ export default function ScanDocumentMode({ onBack }) {
     );
   }
 
-  // 📄 SCAN PAGE - File Upload or Text Input
+  // 📄 SCAN PAGE 
   if (page === 'scan') {
     return (
       <div className="game-mode">
