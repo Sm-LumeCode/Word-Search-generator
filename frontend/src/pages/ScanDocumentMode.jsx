@@ -432,7 +432,7 @@ export default function ScanDocumentMode({ onBack }) {
             ) : (
               <>
                 <h3>Enter Your Paragraph</h3>
-                <p>Text will be analyzed using DSA algorithms and extract relevant keywords</p>
+                <p>Text will be analyzed using DSA algorithms and relevant keywords will be extracted</p>
                 
                 <textarea
                   value={textInput}
