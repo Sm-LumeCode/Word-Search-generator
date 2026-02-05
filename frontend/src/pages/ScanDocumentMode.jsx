@@ -431,12 +431,9 @@ export default function ScanDocumentMode({ onBack }) {
               </>
             ) : (
               <>
-                <h3>Enter Your Document or Paragraph</h3>
-                <p>AI will analyze the text using DSA algorithms and extract relevant keywords</p>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '-10px' }}>
-                  ✨ <strong>NEW:</strong> Processes up to 100,000 characters for comprehensive analysis!
-                </p>
-
+                <h3>Enter Your Paragraph</h3>
+                <p>Text will be analyzed using DSA algorithms and extract relevant keywords</p>
+                
                 <textarea
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
