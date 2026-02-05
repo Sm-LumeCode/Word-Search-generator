@@ -49,7 +49,7 @@ async function readDocument(file) {
 export default function ScanDocumentMode({ onBack }) {
   // Page state: 'choice', 'scan', 'select', 'puzzle'
   const [page, setPage] = useState('choice');
-  
+
   const [uploadMethod, setUploadMethod] = useState(null); // 'file' or 'text'
   const [file, setFile] = useState(null);
   const [textInput, setTextInput] = useState('');
@@ -61,7 +61,7 @@ export default function ScanDocumentMode({ onBack }) {
   const [grid, setGrid] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
   // Puzzle page state
   const [found, setFound] = useState([]);
   const [highlightedCells, setHighlightedCells] = useState([]);
@@ -82,14 +82,14 @@ export default function ScanDocumentMode({ onBack }) {
 
     try {
       let rawText = await readDocument(uploadedFile);
-      
+
       // IMPROVED: Process up to 100,000 characters instead of 15,000
       // This allows processing full 20-page documents
       rawText = rawText.slice(0, 100000);
 
       // Store raw text for refresh - don't use AI processing as it filters keywords
       setProcessedText(rawText);
-      
+
       // Extract directly from raw text to get ALL keywords including technical terms
       const extraction = extractKeywords(rawText, 20);
 
@@ -131,7 +131,7 @@ export default function ScanDocumentMode({ onBack }) {
 
       // Store raw text for refresh - don't use AI processing
       setProcessedText(rawText);
-      
+
       // Extract directly from raw text to get ALL keywords
       const extraction = extractKeywords(rawText, 20);
 
@@ -157,10 +157,10 @@ export default function ScanDocumentMode({ onBack }) {
     }
   };
 
-  // 🔄 REFRESH KEYWORDS - Generate variety with shuffle
+  // 🔄 REFRESH KEYWORDS - Generate variety with shuffle while preserving selected words
   const handleRefreshKeywords = () => {
     if (!processedText) return;
-    
+
     setLoading(true);
     setError("");
 
@@ -179,9 +179,25 @@ export default function ScanDocumentMode({ onBack }) {
         throw new Error("No keywords found");
       }
 
-      setExtractedWords(words);
-      // Default select only up to max allowed
-      setSelectedWords(words.slice(0, Math.min(maxWordsAllowed, words.length)));
+      // FREEZE SELECTED KEYWORDS: Keep user-selected words and only refresh unselected ones
+      const newWords = [];
+      const selectedSet = new Set(selectedWords);
+
+      // First, add all currently selected words (frozen)
+      selectedWords.forEach(word => {
+        newWords.push(word);
+      });
+
+      // Then, add new words that aren't already selected
+      words.forEach(word => {
+        if (!selectedSet.has(word) && newWords.length < 20) {
+          newWords.push(word);
+        }
+      });
+
+      setExtractedWords(newWords);
+      // Keep the same selected words (frozen)
+      // No change to selectedWords - they remain frozen
     } catch (err) {
       setError(err.message);
     } finally {
@@ -192,7 +208,7 @@ export default function ScanDocumentMode({ onBack }) {
   // 🧩 GENERATE GRID WITH VALIDATION
   const handleGenerate = () => {
     setError("");
-    
+
     if (selectedWords.length < 3) {
       setError("❌ Please select at least 3 keywords");
       return;
@@ -220,7 +236,7 @@ export default function ScanDocumentMode({ onBack }) {
   // ☑️ TOGGLE WORD WITH VALIDATION
   const toggleWord = (word) => {
     const isCurrentlySelected = selectedWords.includes(word);
-    
+
     if (isCurrentlySelected) {
       // Deselecting - always allow
       setSelectedWords(prev => prev.filter(w => w !== word));
@@ -240,7 +256,7 @@ export default function ScanDocumentMode({ onBack }) {
   const handleGridSizeChange = (newSize) => {
     setGridSize(newSize);
     const newMaxWords = getMaxWordsForGrid(newSize);
-    
+
     // If current selection exceeds new max, show warning but don't auto-deselect
     if (selectedWords.length > newMaxWords) {
       setError(`⚠️ You have ${selectedWords.length} words selected but ${newSize}×${newSize} grid allows maximum ${newMaxWords} words. Please deselect ${selectedWords.length - newMaxWords} word(s).`);
@@ -255,14 +271,14 @@ export default function ScanDocumentMode({ onBack }) {
     setTimeout(() => {
       // Since generateHardPuzzle places all words, we should find them all
       const result = solveGrid(grid, selectedWords);
-      
+
       // Verify all words were found - they should be since we placed them all
       if (result.length < selectedWords.length) {
         console.warn(`Only found ${result.length} of ${selectedWords.length} words. This shouldn't happen.`);
       }
-      
+
       setFound(result);
-      
+
       const highlighted = [];
       result.forEach(word => {
         const positions = findWordPositions(grid, word);
@@ -279,10 +295,10 @@ export default function ScanDocumentMode({ onBack }) {
     const cols = grid[0].length;
     const directions = [
       [-1, -1], [-1, 0], [-1, 1],
-      [0, -1],           [0, 1],
-      [1, -1],  [1, 0],  [1, 1]
+      [0, -1], [0, 1],
+      [1, -1], [1, 0], [1, 1]
     ];
-    
+
     for (let i = 0; i < rows; i++) {
       for (let j = 0; j < cols; j++) {
         for (let [dr, dc] of directions) {
@@ -300,7 +316,7 @@ export default function ScanDocumentMode({ onBack }) {
     const positions = [];
     let r = startRow;
     let c = startCol;
-    
+
     for (let i = 0; i < word.length; i++) {
       if (r < 0 || r >= grid.length || c < 0 || c >= grid[0].length) return [];
       if (grid[r][c] !== word[i]) return [];
@@ -346,7 +362,7 @@ export default function ScanDocumentMode({ onBack }) {
         <div className="setup-container">
           <div className="setup-step">
             <h3>Choose Input Method</h3>
-            
+
             <div className="button-group" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <button
                 onClick={() => {
@@ -383,11 +399,11 @@ export default function ScanDocumentMode({ onBack }) {
     return (
       <div className="game-mode">
         <button className="back-btn" onClick={() => setPage('choice')}>← Back</button>
-        
+
         <h1>📄 {uploadMethod === 'file' ? 'Upload Document' : 'Paste Text'}</h1>
         <p className="mode-description">
-          {uploadMethod === 'file' 
-            ? 'Upload a document to extract keywords and generate puzzle (up to 100,000 characters processed)' 
+          {uploadMethod === 'file'
+            ? 'Upload a document to extract keywords and generate puzzle (up to 100,000 characters processed)'
             : 'Paste your text to extract keywords and generate puzzle (up to 100,000 characters processed)'}
         </p>
 
@@ -397,8 +413,8 @@ export default function ScanDocumentMode({ onBack }) {
               <>
                 <h3>Upload Document</h3>
                 <p>Supported formats: .txt, .pdf, .docx (max 20 pages)</p>
-                
-                
+
+
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px', color: 'var(--accent-blue)' }}>
                     <div className="loading-spinner"></div>
@@ -420,7 +436,7 @@ export default function ScanDocumentMode({ onBack }) {
                 <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '-10px' }}>
                   ✨ <strong>NEW:</strong> Processes up to 100,000 characters for comprehensive analysis!
                 </p>
-                
+
                 <textarea
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
@@ -431,12 +447,12 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
                   rows="10"
                   style={{ width: '100%', marginBottom: '20px' }}
                 />
-                
+
                 <button
                   onClick={handleTextSubmit}
                   disabled={!textInput.trim() || loading}
                   className="btn-primary"
-                  style={{ 
+                  style={{
                     width: '100%',
                     opacity: (textInput.trim() && !loading) ? 1 : 0.5,
                     cursor: (textInput.trim() && !loading) ? 'pointer' : 'not-allowed'
@@ -459,7 +475,7 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
     return (
       <div className="game-mode">
         <button className="back-btn" onClick={handleStartOver}>← Start Over</button>
-        
+
         <h1>📝 Select Keywords</h1>
         <p className="mode-description">
           Choose keywords to include in your puzzle (Selected: {selectedWords.length}/{extractedWords.length} | Max allowed: {maxWordsAllowed})
@@ -469,10 +485,10 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
           <div className="setup-step">
             {/* Stats Display */}
             {extractionResult && extractionResult.stats && (
-              <div className="stats-display" style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
-                gap: '15px', 
+              <div className="stats-display" style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '15px',
                 marginBottom: '20px',
                 padding: '15px',
                 background: 'var(--bg-secondary)',
@@ -512,8 +528,8 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
               onClick={handleRefreshKeywords}
               disabled={loading || !processedText}
               className="btn-refresh"
-              style={{ 
-                width: '100%', 
+              style={{
+                width: '100%',
                 marginBottom: '20px',
                 padding: '12px 20px',
                 fontSize: '1rem',
@@ -560,10 +576,10 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
 
             {/* Processing Steps */}
             {showSteps && extractionResult && extractionResult.processingSteps && (
-              <div className="processing-steps" style={{ 
-                marginBottom: '20px', 
-                padding: '15px', 
-                background: 'var(--bg-secondary)', 
+              <div className="processing-steps" style={{
+                marginBottom: '20px',
+                padding: '15px',
+                background: 'var(--bg-secondary)',
                 borderRadius: '8px',
                 maxHeight: '400px',
                 overflowY: 'auto'
@@ -576,9 +592,9 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
                     {step.data && step.data.length > 0 && (
                       <div className="step-data" style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '8px' }}>
                         {step.data.slice(0, 5).map((item, i) => (
-                          <div key={i} className="data-item" style={{ 
-                            padding: '4px 8px', 
-                            background: 'var(--bg-primary)', 
+                          <div key={i} className="data-item" style={{
+                            padding: '4px 8px',
+                            background: 'var(--bg-primary)',
                             borderRadius: '4px',
                             fontSize: '0.8rem'
                           }}>{item}</div>
@@ -593,20 +609,20 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
             <h3>Keywords Extracted</h3>
             <p>Click to select/deselect keywords for your puzzle</p>
 
-            <div className="keyword-grid" style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', 
-              gap: '10px', 
-              marginBottom: '20px' 
+            <div className="keyword-grid" style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: '10px',
+              marginBottom: '20px'
             }}>
               {extractedWords.slice(0, 20).map((word, i) => (
                 <div
                   key={i}
                   className={`keyword-chip ${selectedWords.includes(word) ? 'selected' : ''}`}
                   onClick={() => toggleWord(word)}
-                  style={{ 
-                    padding: '10px 15px', 
-                    borderRadius: '8px', 
+                  style={{
+                    padding: '10px 15px',
+                    borderRadius: '8px',
                     cursor: 'pointer',
                     textAlign: 'center',
                     transition: 'all 0.2s'
@@ -630,15 +646,15 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
                 value={gridSize}
                 onChange={(e) => handleGridSizeChange(Number(e.target.value))}
                 className="grid-slider"
-                style={{ 
+                style={{
                   width: '100%',
                   accentColor: '#3498db'
                 }}
               />
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                fontSize: '0.9rem', 
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '0.9rem',
                 color: 'var(--text-secondary)',
                 marginTop: '5px'
               }}>
@@ -660,11 +676,11 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
               </div>
             )}
 
-            <button 
-              className="btn-primary" 
+            <button
+              className="btn-primary"
               onClick={handleGenerate}
               disabled={selectedWords.length < 3 || selectedWords.length > maxWordsAllowed}
-              style={{ 
+              style={{
                 marginTop: '20px',
                 width: '100%',
                 opacity: (selectedWords.length >= 3 && selectedWords.length <= maxWordsAllowed) ? 1 : 0.5,
@@ -689,11 +705,11 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
             🏠 Back to Categories
           </button>
         </div>
-        
+
         <h1>🧩 Your Word Search Puzzle</h1>
         <p className="mode-description">
-          {found.length === selectedWords.length 
-            ? '🎉 All words found!' 
+          {found.length === selectedWords.length
+            ? '🎉 All words found!'
             : `Found ${found.length} of ${selectedWords.length} words`}
         </p>
 
@@ -701,9 +717,9 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
           <button className="btn-generate" onClick={handleRegenerate}>
             🔄 Regenerate Puzzle
           </button>
-          <button 
-            className="btn-solve" 
-            onClick={handleSolve} 
+          <button
+            className="btn-solve"
+            onClick={handleSolve}
             disabled={solving || found.length === selectedWords.length}
           >
             {solving ? '⏳ Solving...' : found.length === selectedWords.length ? '✅ All Found' : '🎯 Solve Puzzle'}
