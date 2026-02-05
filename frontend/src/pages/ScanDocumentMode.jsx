@@ -53,6 +53,7 @@ export default function ScanDocumentMode({ onBack }) {
   const [uploadMethod, setUploadMethod] = useState(null); // 'file' or 'text'
   const [file, setFile] = useState(null);
   const [textInput, setTextInput] = useState('');
+  const [processedText, setProcessedText] = useState(''); // Store processed text for refresh
   const [extractedWords, setExtractedWords] = useState([]);
   const [extractionResult, setExtractionResult] = useState(null);
   const [selectedWords, setSelectedWords] = useState([]);
@@ -70,7 +71,7 @@ export default function ScanDocumentMode({ onBack }) {
   // Calculate maximum words allowed for current grid size
   const maxWordsAllowed = getMaxWordsForGrid(gridSize);
 
-  // 📄 PROCESS FILE UPLOAD
+  // 📄 PROCESS FILE UPLOAD - IMPROVED: Extract from raw text directly
   const handleFileUpload = async (e) => {
     const uploadedFile = e.target.files[0];
     if (!uploadedFile) return;
@@ -81,10 +82,16 @@ export default function ScanDocumentMode({ onBack }) {
 
     try {
       let rawText = await readDocument(uploadedFile);
-      rawText = rawText.slice(0, 15000);
+      
+      // IMPROVED: Process up to 100,000 characters instead of 15,000
+      // This allows processing full 20-page documents
+      rawText = rawText.slice(0, 100000);
 
-      const aiText = await getAIText(rawText);
-      const extraction = extractKeywords(aiText, 20); // Extract more for user to choose
+      // Store raw text for refresh - don't use AI processing as it filters keywords
+      setProcessedText(rawText);
+      
+      // Extract directly from raw text to get ALL keywords including technical terms
+      const extraction = extractKeywords(rawText, 20);
 
       if (!extraction.success) {
         throw new Error("Keyword extraction failed");
@@ -108,7 +115,7 @@ export default function ScanDocumentMode({ onBack }) {
     }
   };
 
-  // ✏️ PROCESS TEXT INPUT
+  // ✏️ PROCESS TEXT INPUT - Extract from raw text directly
   const handleTextSubmit = async () => {
     if (!textInput.trim()) {
       setError("Please enter some text");
@@ -119,10 +126,14 @@ export default function ScanDocumentMode({ onBack }) {
     setError("");
 
     try {
-      let rawText = textInput.slice(0, 15000);
+      // IMPROVED: Process up to 100,000 characters instead of 15,000
+      let rawText = textInput.slice(0, 100000);
 
-      const aiText = await getAIText(rawText);
-      const extraction = extractKeywords(aiText, 20); // Extract more for user to choose
+      // Store raw text for refresh - don't use AI processing
+      setProcessedText(rawText);
+      
+      // Extract directly from raw text to get ALL keywords
+      const extraction = extractKeywords(rawText, 20);
 
       if (!extraction.success) {
         throw new Error("Keyword extraction failed");
@@ -139,6 +150,38 @@ export default function ScanDocumentMode({ onBack }) {
       // Default select only up to max allowed
       setSelectedWords(words.slice(0, Math.min(maxWordsAllowed, words.length)));
       setPage('select'); // Move to selection page
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🔄 REFRESH KEYWORDS - Generate variety with shuffle
+  const handleRefreshKeywords = () => {
+    if (!processedText) return;
+    
+    setLoading(true);
+    setError("");
+
+    try {
+      // Use shuffle option to get different keyword variety
+      const extraction = extractKeywords(processedText, 20, { shuffle: true });
+
+      if (!extraction.success) {
+        throw new Error("Keyword refresh failed");
+      }
+
+      setExtractionResult(extraction);
+      const words = getKeywordList(extraction);
+
+      if (!words || words.length === 0) {
+        throw new Error("No keywords found");
+      }
+
+      setExtractedWords(words);
+      // Default select only up to max allowed
+      setSelectedWords(words.slice(0, Math.min(maxWordsAllowed, words.length)));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -206,11 +249,18 @@ export default function ScanDocumentMode({ onBack }) {
     }
   };
 
-  // 🎯 SOLVE PUZZLE
+  // 🎯 SOLVE PUZZLE - Guaranteed to find all words since they're all in the grid
   const handleSolve = () => {
     setSolving(true);
     setTimeout(() => {
+      // Since generateHardPuzzle places all words, we should find them all
       const result = solveGrid(grid, selectedWords);
+      
+      // Verify all words were found - they should be since we placed them all
+      if (result.length < selectedWords.length) {
+        console.warn(`Only found ${result.length} of ${selectedWords.length} words. This shouldn't happen.`);
+      }
+      
       setFound(result);
       
       const highlighted = [];
@@ -337,8 +387,8 @@ export default function ScanDocumentMode({ onBack }) {
         <h1>📄 {uploadMethod === 'file' ? 'Upload Document' : 'Paste Text'}</h1>
         <p className="mode-description">
           {uploadMethod === 'file' 
-            ? 'Upload a document to extract keywords and generate puzzle' 
-            : 'Paste your text to extract keywords and generate puzzle'}
+            ? 'Upload a document to extract keywords and generate puzzle (up to 100,000 characters processed)' 
+            : 'Paste your text to extract keywords and generate puzzle (up to 100,000 characters processed)'}
         </p>
 
         <div className="setup-container">
@@ -347,11 +397,14 @@ export default function ScanDocumentMode({ onBack }) {
               <>
                 <h3>Upload Document</h3>
                 <p>Supported formats: .txt, .pdf, .docx (max 20 pages for PDF)</p>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '-10px' }}>
+                  ✨ <strong>NEW:</strong> Now processes entire document for complete keyword coverage!
+                </p>
                 
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px', color: 'var(--accent-blue)' }}>
                     <div className="loading-spinner"></div>
-                    <p style={{ marginTop: '20px' }}>⏳ Processing document...</p>
+                    <p style={{ marginTop: '20px' }}>⏳ Processing entire document...</p>
                   </div>
                 ) : (
                   <input
@@ -366,6 +419,9 @@ export default function ScanDocumentMode({ onBack }) {
               <>
                 <h3>Enter Your Document or Paragraph</h3>
                 <p>AI will analyze the text using DSA algorithms and extract relevant keywords</p>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '-10px' }}>
+                  ✨ <strong>NEW:</strong> Processes up to 100,000 characters for comprehensive analysis!
+                </p>
                 
                 <textarea
                   value={textInput}
@@ -388,7 +444,7 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
                     cursor: (textInput.trim() && !loading) ? 'pointer' : 'not-allowed'
                   }}
                 >
-                  {loading ? '⏳ Processing...' : '🤖 Extract Keywords with AI'}
+                  {loading ? '⏳ Processing entire text...' : '🤖 Extract Keywords with AI'}
                 </button>
               </>
             )}
@@ -437,19 +493,61 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
                   </span>
                 </div>
                 <div className="stat-item">
-                  <span className="stat-label" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Bigrams:</span>
-                  <span className="stat-value" style={{ display: 'block', fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--accent-purple)' }}>
-                    {extractionResult.stats.bigramsDetected}
-                  </span>
-                </div>
-                <div className="stat-item">
                   <span className="stat-label" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Unique Keywords:</span>
                   <span className="stat-value" style={{ display: 'block', fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--accent-orange)' }}>
                     {extractionResult.stats.uniqueWords}
                   </span>
                 </div>
+                {extractionResult.stats.documentCoverage && (
+                  <div className="stat-item">
+                    <span className="stat-label" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Coverage:</span>
+                    <span className="stat-value" style={{ display: 'block', fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--accent-purple)' }}>
+                      {extractionResult.stats.documentCoverage}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Refresh Keywords Button */}
+            <button
+              onClick={handleRefreshKeywords}
+              disabled={loading || !processedText}
+              className="btn-refresh"
+              style={{ 
+                width: '100%', 
+                marginBottom: '20px',
+                padding: '12px 20px',
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                color: '#ffffff',
+                background: loading ? '#95a5a6' : '#1e3a8a',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.3s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+              onMouseEnter={(e) => {
+                if (!loading && processedText) {
+                  e.target.style.background = '#1e40af';
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(30, 58, 138, 0.3)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading && processedText) {
+                  e.target.style.background = '#1e3a8a';
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = 'none';
+                }
+              }}
+            >
+              {loading ? '⏳ Refreshing...' : '🔄 Refresh Keywords'}
+            </button>
 
             {/* Show DSA Steps Button */}
             {extractionResult && extractionResult.processingSteps && (
@@ -503,7 +601,7 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
               gap: '10px', 
               marginBottom: '20px' 
             }}>
-              {extractedWords.map((word, i) => (
+              {extractedWords.slice(0, 20).map((word, i) => (
                 <div
                   key={i}
                   className={`keyword-chip ${selectedWords.includes(word) ? 'selected' : ''}`}
@@ -536,7 +634,7 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
                 className="grid-slider"
                 style={{ 
                   width: '100%',
-                  accentColor: '#3498db' // Blue color only
+                  accentColor: '#3498db'
                 }}
               />
               <div style={{ 
