@@ -396,10 +396,8 @@ export default function ScanDocumentMode({ onBack }) {
             {uploadMethod === 'file' ? (
               <>
                 <h3>Upload Document</h3>
-                <p>Supported formats: .txt, .pdf, .docx (max 20 pages for PDF)</p>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '-10px' }}>
-                  ✨ <strong>NEW:</strong> Now processes entire document for complete keyword coverage!
-                </p>
+                <p>Supported formats: .txt, .pdf, .docx (max 20 pages)</p>
+                
                 
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px', color: 'var(--accent-blue)' }}>
