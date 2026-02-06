@@ -54,7 +54,8 @@ export default function ScanDocumentMode({ onBack }) {
   const [file, setFile] = useState(null);
   const [textInput, setTextInput] = useState('');
   const [processedText, setProcessedText] = useState(''); // Store processed text for refresh
-  const [extractedWords, setExtractedWords] = useState([]);
+  const [extractedWords, setExtractedWords] = useState([]); // All 50 keywords (full pool)
+  const [displayedWords, setDisplayedWords] = useState([]); // Currently displayed 20 keywords
   const [extractionResult, setExtractionResult] = useState(null);
   const [selectedWords, setSelectedWords] = useState([]);
   const [gridSize, setGridSize] = useState(10);
@@ -91,7 +92,7 @@ export default function ScanDocumentMode({ onBack }) {
       setProcessedText(rawText);
 
       // Extract directly from raw text to get ALL keywords including technical terms
-      const extraction = extractKeywords(rawText, 20);
+      const extraction = extractKeywords(rawText, 50);
 
       if (!extraction.success) {
         throw new Error("Keyword extraction failed");
@@ -104,7 +105,10 @@ export default function ScanDocumentMode({ onBack }) {
         throw new Error("No keywords extracted");
       }
 
+      // Store all 50 keywords in the pool
       setExtractedWords(words);
+      // Display only top 20 keywords initially
+      setDisplayedWords(words.slice(0, 20));
       // Default select only up to max allowed
       setSelectedWords(words.slice(0, Math.min(maxWordsAllowed, words.length)));
       setPage('select'); // Move to selection page
@@ -133,7 +137,7 @@ export default function ScanDocumentMode({ onBack }) {
       setProcessedText(rawText);
 
       // Extract directly from raw text to get ALL keywords
-      const extraction = extractKeywords(rawText, 20);
+      const extraction = extractKeywords(rawText, 50);
 
       if (!extraction.success) {
         throw new Error("Keyword extraction failed");
@@ -146,7 +150,10 @@ export default function ScanDocumentMode({ onBack }) {
         throw new Error("No keywords extracted");
       }
 
+      // Store all 50 keywords in the pool
       setExtractedWords(words);
+      // Display only top 20 keywords initially
+      setDisplayedWords(words.slice(0, 20));
       // Default select only up to max allowed
       setSelectedWords(words.slice(0, Math.min(maxWordsAllowed, words.length)));
       setPage('select'); // Move to selection page
@@ -157,45 +164,41 @@ export default function ScanDocumentMode({ onBack }) {
     }
   };
 
-  // 🔄 REFRESH KEYWORDS - Generate variety with shuffle while preserving selected words
+  // 🔄 REFRESH KEYWORDS - Rotate through pool showing different 20 keywords while preserving selected
   const handleRefreshKeywords = () => {
-    if (!processedText) return;
+    if (!extractedWords || extractedWords.length === 0) return;
 
     setLoading(true);
     setError("");
 
     try {
-      // Use shuffle option to get different keyword variety
-      const extraction = extractKeywords(processedText, 20, { shuffle: true });
-
-      if (!extraction.success) {
-        throw new Error("Keyword refresh failed");
-      }
-
-      setExtractionResult(extraction);
-      const words = getKeywordList(extraction);
-
-      if (!words || words.length === 0) {
-        throw new Error("No keywords found");
-      }
-
-      // FREEZE SELECTED KEYWORDS: Keep user-selected words and only refresh unselected ones
-      const newWords = [];
       const selectedSet = new Set(selectedWords);
+      const currentDisplayedSet = new Set(displayedWords);
 
-      // First, add all currently selected words (frozen)
-      selectedWords.forEach(word => {
-        newWords.push(word);
-      });
+      // Get all unselected keywords from the full pool
+      const unselectedPool = extractedWords.filter(word => !selectedSet.has(word));
 
-      // Then, add new words that aren't already selected
-      words.forEach(word => {
-        if (!selectedSet.has(word) && newWords.length < 20) {
-          newWords.push(word);
-        }
-      });
+      // Get currently displayed unselected keywords
+      const currentUnselected = displayedWords.filter(word => !selectedSet.has(word));
 
-      setExtractedWords(newWords);
+      // Find next batch of unselected keywords not currently displayed
+      let nextUnselected = unselectedPool.filter(word => !currentDisplayedSet.has(word));
+
+      // If we've cycled through all, start from beginning
+      if (nextUnselected.length === 0) {
+        nextUnselected = unselectedPool;
+      }
+
+      // Calculate how many unselected keywords we need to show
+      const slotsNeeded = 20 - selectedWords.length;
+
+      // Build new displayed list: selected keywords + next batch of unselected
+      const newDisplayed = [
+        ...selectedWords, // Keep all selected keywords visible
+        ...nextUnselected.slice(0, Math.max(0, slotsNeeded)) // Fill remaining slots
+      ];
+
+      setDisplayedWords(newDisplayed);
       // Keep the same selected words (frozen)
       // No change to selectedWords - they remain frozen
     } catch (err) {
@@ -342,6 +345,7 @@ export default function ScanDocumentMode({ onBack }) {
     setFile(null);
     setTextInput('');
     setExtractedWords([]);
+    setDisplayedWords([]);
     setExtractionResult(null);
     setSelectedWords([]);
     setGrid(null);
@@ -394,7 +398,7 @@ export default function ScanDocumentMode({ onBack }) {
     );
   }
 
-  // 📄 SCAN PAGE 
+  // 📄 SCAN PAGE - File Upload or Text Input
   if (page === 'scan') {
     return (
       <div className="game-mode">
@@ -431,9 +435,12 @@ export default function ScanDocumentMode({ onBack }) {
               </>
             ) : (
               <>
-                <h3>Enter Your Paragraph</h3>
-                <p>Text will be analyzed using DSA algorithms and relevant keywords will be extracted</p>
-                
+                <h3>Enter Your Document or Paragraph</h3>
+                <p>AI will analyze the text using DSA algorithms and extract relevant keywords</p>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '-10px' }}>
+                  ✨ <strong>NEW:</strong> Processes up to 100,000 characters for comprehensive analysis!
+                </p>
+
                 <textarea
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
@@ -475,7 +482,7 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
 
         <h1>📝 Select Keywords</h1>
         <p className="mode-description">
-          Choose keywords to include in your puzzle (Selected: {selectedWords.length}/{extractedWords.length} | Max allowed: {maxWordsAllowed})
+          Choose keywords to include in your puzzle (Selected: {selectedWords.length} | Showing: {displayedWords.length} of {extractedWords.length} | Max allowed: {maxWordsAllowed})
         </p>
 
         <div className="setup-container" style={{ maxWidth: '800px' }}>
@@ -523,7 +530,7 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
             {/* Refresh Keywords Button */}
             <button
               onClick={handleRefreshKeywords}
-              disabled={loading || !processedText}
+              disabled={loading || extractedWords.length === 0}
               className="btn-refresh"
               style={{
                 width: '100%',
@@ -543,14 +550,14 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
                 gap: '8px'
               }}
               onMouseEnter={(e) => {
-                if (!loading && processedText) {
+                if (!loading && extractedWords.length > 0) {
                   e.target.style.background = '#1e40af';
                   e.target.style.transform = 'translateY(-2px)';
                   e.target.style.boxShadow = '0 4px 12px rgba(30, 58, 138, 0.3)';
                 }
               }}
               onMouseLeave={(e) => {
-                if (!loading && processedText) {
+                if (!loading && extractedWords.length > 0) {
                   e.target.style.background = '#1e3a8a';
                   e.target.style.transform = 'translateY(0)';
                   e.target.style.boxShadow = 'none';
@@ -612,7 +619,7 @@ Example: Machine learning is a subset of artificial intelligence that focuses on
               gap: '10px',
               marginBottom: '20px'
             }}>
-              {extractedWords.slice(0, 20).map((word, i) => (
+              {displayedWords.map((word, i) => (
                 <div
                   key={i}
                   className={`keyword-chip ${selectedWords.includes(word) ? 'selected' : ''}`}
