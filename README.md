@@ -1,7 +1,4 @@
 # 🔍 Word Search Master — DSA Edition
-
-![Word Search Master Hero](./assets/hero.png)
-
 <div align="center">
 
 [![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen?style=for-the-badge&logo=vercel)](https://word-search-generator-tan.vercel.app/)
